@@ -215,8 +215,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                                 }
                             }
                         ?>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="card property-card h-100 border-0 shadow-sm">
+                        <div class="col-md-6 col-lg-4 d-flex">
+                            <div class="card property-card border-0 shadow-sm w-100">
                                 <div class="position-relative">
                                     <a href="property_details.php?id=<?php echo $property['id']; ?>">
                                         <img src="<?php echo $main_image; ?>" class="card-img-top" alt="<?php echo htmlspecialchars($property['title']); ?>">

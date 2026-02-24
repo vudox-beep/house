@@ -15,23 +15,46 @@ try {
     $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    // Handle Subscription Update
-    $success_msg = '';
-    $error_msg = '';
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_subscription') {
-        $user_id = $_POST['user_id'];
-        $status = $_POST['subscription_status'];
-        $expiry = $_POST['subscription_expiry'];
-        
-        // If expiry is empty, set to NULL (lifetime) or handle accordingly. 
-        // Ideally, if active, it should have an expiry or be far in future.
-        if (empty($expiry)) $expiry = null;
-
+    // Handle User Actions
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $userObj = new User();
-        if ($userObj->updateSubscription($user_id, $status, $expiry)) {
-            $success_msg = "Subscription updated successfully.";
-        } else {
-            $error_msg = "Failed to update subscription.";
+        
+        if ($_POST['action'] === 'update_subscription') {
+            $user_id = $_POST['user_id'];
+            $status = $_POST['subscription_status'];
+            $expiry = $_POST['subscription_expiry'];
+            if (empty($expiry)) $expiry = null;
+
+            if ($userObj->updateSubscription($user_id, $status, $expiry)) {
+                $success_msg = "Subscription updated successfully.";
+            } else {
+                $error_msg = "Failed to update subscription.";
+            }
+        } elseif ($_POST['action'] === 'delete_user') {
+            $user_id = $_POST['user_id'];
+            // Prevent deleting self
+            if ($user_id == $_SESSION['user_id']) {
+                $error_msg = "You cannot delete your own account.";
+            } else {
+                if ($userObj->delete($user_id)) {
+                    $success_msg = "User deleted successfully.";
+                } else {
+                    $error_msg = "Failed to delete user.";
+                }
+            }
+        } elseif ($_POST['action'] === 'toggle_ban') {
+            $user_id = $_POST['user_id'];
+            $status = $_POST['ban_status']; // 1 for ban, 0 for unban
+            
+            if ($user_id == $_SESSION['user_id']) {
+                $error_msg = "You cannot ban your own account.";
+            } else {
+                if ($userObj->toggleBan($user_id, $status)) {
+                    $success_msg = "User status updated successfully.";
+                } else {
+                    $error_msg = "Failed to update user status.";
+                }
+            }
         }
     }
 
@@ -180,6 +203,9 @@ try {
                                             <?php else: ?>
                                                 <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill">Unverified</span>
                                             <?php endif; ?>
+                                            <?php if(!empty($user['is_banned'])): ?>
+                                                <span class="badge bg-danger">Banned</span>
+                                            <?php endif; ?>
                                         </td>
                                         <td class="text-muted small"><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
                                         <td>
@@ -190,9 +216,33 @@ try {
                                                     <i class="bi bi-credit-card"></i>
                                                 </button>
                                             <?php endif; ?>
-                                            <button class="btn btn-sm btn-light border me-1" title="View Details"><i class="bi bi-eye"></i></button>
+                                            
+                                            <button class="btn btn-sm btn-light border me-1" 
+                                                    onclick='viewUser(<?php echo json_encode($user); ?>)'
+                                                    title="View Details">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            
                                             <?php if($user['role'] !== 'admin'): ?>
-                                                <button class="btn btn-sm btn-light border text-danger" title="Delete User"><i class="bi bi-trash"></i></button>
+                                                <?php if(empty($user['is_banned'])): ?>
+                                                    <button class="btn btn-sm btn-light border text-warning me-1" 
+                                                            onclick="confirmAction('toggle_ban', <?php echo $user['id']; ?>, 'Ban this user?', 1)"
+                                                            title="Ban User">
+                                                        <i class="bi bi-slash-circle"></i>
+                                                    </button>
+                                                <?php else: ?>
+                                                    <button class="btn btn-sm btn-light border text-success me-1" 
+                                                            onclick="confirmAction('toggle_ban', <?php echo $user['id']; ?>, 'Unban this user?', 0)"
+                                                            title="Unban User">
+                                                        <i class="bi bi-check-circle"></i>
+                                                    </button>
+                                                <?php endif; ?>
+
+                                                <button class="btn btn-sm btn-light border text-danger" 
+                                                        onclick="confirmAction('delete_user', <?php echo $user['id']; ?>, 'Delete this user permanently? This cannot be undone.')"
+                                                        title="Delete User">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
                                             <?php endif; ?>
                                         </td>
                                     </tr>

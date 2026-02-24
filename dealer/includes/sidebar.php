@@ -24,6 +24,11 @@
             </a>
         </li>
         <li class="sidebar-item">
+            <a href="payments.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'payments.php' ? 'active' : ''; ?>">
+                <i class="bi bi-receipt"></i> Payment History
+            </a>
+        </li>
+        <li class="sidebar-item">
             <a href="profile.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'profile.php' ? 'active' : ''; ?>">
                 <i class="bi bi-person-circle"></i> Profile
             </a>

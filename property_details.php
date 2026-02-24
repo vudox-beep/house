@@ -9,6 +9,7 @@ if (!isset($_GET['id'])) {
 
 $property_id = $_GET['id'];
 $propertyModel = new Property();
+$propertyModel->incrementViews($property_id); // Increment views
 $property = $propertyModel->getById($property_id);
 $images = $propertyModel->getImages($property_id);
 

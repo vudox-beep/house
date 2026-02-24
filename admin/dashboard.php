@@ -29,9 +29,64 @@ try {
     $stmt = $pdo->query("SELECT COUNT(*) FROM properties");
     $total_properties = $stmt->fetchColumn();
 
-    // Get Total Revenue (Mock Calculation or Real if transactions table exists)
-    // Assuming we have a payments table or subscription fees
-    $total_revenue = 0; // Placeholder
+    // Get Recent Transactions with User Details
+    $recent_transactions = [];
+    $transactions_exist = $pdo->query("SHOW TABLES LIKE 'transactions'")->rowCount() > 0;
+
+    // Get Total Revenue
+    $total_revenue = 0;
+    if ($transactions_exist) {
+        $stmt = $pdo->query("SELECT SUM(amount) FROM transactions WHERE status = 'successful'");
+        $total_revenue = $stmt->fetchColumn() ?: 0;
+    }
+    
+    // Get Recent Transactions from Lenco Live
+    require_once '../includes/LencoAPI.php';
+    $lenco = new LencoAPI();
+    $response = $lenco->getCollections(1); // Page 1
+    $lenco_transactions = [];
+
+    if (isset($response['status']) && $response['status'] === true) {
+        $raw_transactions = $response['data'] ?? [];
+        $raw_transactions = array_slice($raw_transactions, 0, 5); // Limit to 5
+        
+        foreach($raw_transactions as $ltxn) {
+            $ref = $ltxn['reference'] ?? '';
+            
+            // Try to find user in local DB
+            $user_name = 'External Client';
+            $user_contact = 'Unknown';
+            
+            if (isset($ltxn['mobileMoneyDetails']['phone'])) {
+                $user_contact = $ltxn['mobileMoneyDetails']['phone'];
+            } elseif (isset($ltxn['cardDetails']['last4'])) {
+                $user_contact = 'Card ****' . $ltxn['cardDetails']['last4'];
+            }
+            
+            if ($ref) {
+                $stmt = $pdo->prepare("SELECT u.name, u.email FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.reference = :ref LIMIT 1");
+                $stmt->execute([':ref' => $ref]);
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($user) {
+                    $user_name = $user['name'];
+                    $user_contact = $user['email'];
+                }
+            }
+
+            $lenco_transactions[] = [
+                'reference' => $ref,
+                'user_name' => $user_name,
+                'user_email' => $user_contact,
+                'currency' => $ltxn['currency'] ?? 'ZMW',
+                'amount' => $ltxn['amount'] ?? 0,
+                'status' => $ltxn['status'] ?? 'pending',
+                'created_at' => $ltxn['createdAt'] ?? date('Y-m-d H:i:s')
+            ];
+        }
+    }
+    
+    // Fallback if API fails or is empty, use empty array (or local DB if preferred, but user asked for live lenco)
+    $recent_transactions = $lenco_transactions;
 
 } catch (PDOException $e) {
     die("DB ERROR: " . $e->getMessage());
@@ -144,9 +199,42 @@ try {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td colspan="5" class="text-center py-4 text-muted">No transactions found.</td>
-                            </tr>
+                            <?php if (count($recent_transactions) > 0): ?>
+                                <?php foreach ($recent_transactions as $txn): ?>
+                                    <tr>
+                                        <td class="ps-4 fw-bold text-primary small"><?php echo htmlspecialchars($txn['reference']); ?></td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <div class="bg-light rounded-circle p-2 me-2 d-none d-md-block">
+                                                    <i class="bi bi-person text-muted"></i>
+                                                </div>
+                                                <div>
+                                                    <div class="fw-bold text-dark small"><?php echo htmlspecialchars($txn['user_name'] ?? 'Unknown'); ?></div>
+                                                    <div class="small text-muted" style="font-size: 0.75rem;"><?php echo htmlspecialchars($txn['user_email'] ?? '-'); ?></div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="fw-bold"><?php echo htmlspecialchars($txn['currency'] . ' ' . number_format($txn['amount'], 2)); ?></td>
+                                        <td>
+                                            <?php 
+                                                $status = strtolower($txn['status']);
+                                                if($status == 'successful' || $status == 'completed'): 
+                                            ?>
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2">Success</span>
+                                            <?php elseif($status == 'pending' || $status == 'submitted'): ?>
+                                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-2">Pending</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2">Failed</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="text-muted small"><?php echo date('M d, H:i', strtotime($txn['created_at'])); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">No transactions found.</td>
+                                </tr>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>

@@ -2,6 +2,7 @@
 require_once '../config/config.php';
 require_once '../includes/auth_check.php';
 require_once '../models/User.php';
+require_once '../models/Property.php'; // Fix: Include Property Model
 require_once '../includes/LencoAPI.php';
 
 check_dealer();

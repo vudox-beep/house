@@ -306,6 +306,14 @@ class Property {
         return $stmt->execute();
     }
 
+    // Increment View Count
+    public function incrementViews($id) {
+        $query = 'UPDATE ' . $this->table . ' SET views = views + 1 WHERE id = :id';
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':id', $id);
+        return $stmt->execute();
+    }
+
     // Get Tenancy History
     public function getHistory($property_id) {
         $query = 'SELECT * FROM tenancy_history WHERE property_id = :property_id ORDER BY end_date DESC';

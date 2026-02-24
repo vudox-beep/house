@@ -57,6 +57,7 @@ $properties = $propertyModel->getByDealer($dealer_id);
                             <th class="ps-4">Property</th>
                             <th>Type</th>
                             <th>Price</th>
+                            <th>Views</th>
                             <th>Status</th>
                             <th>Date Added</th>
                             <th>Actions</th>
@@ -79,6 +80,7 @@ $properties = $propertyModel->getByDealer($dealer_id);
                                     </td>
                                     <td><?php echo ucfirst($prop['property_type']); ?></td>
                                     <td class="fw-bold text-primary"><?php echo $prop['currency'] . ' ' . number_format($prop['price']); ?></td>
+                                    <td><span class="badge bg-light text-dark border"><i class="bi bi-eye-fill text-muted"></i> <?php echo number_format($prop['views'] ?? 0); ?></span></td>
                                     <td>
                                         <?php if($prop['status'] == 'available'): ?>
                                             <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Available</span>
@@ -91,7 +93,9 @@ $properties = $propertyModel->getByDealer($dealer_id);
                                         <a href="edit_property.php?id=<?php echo $prop['id']; ?>" class="btn btn-sm btn-light border me-1" title="Edit"><i class="bi bi-pencil"></i></a>
                                         <a href="property_history.php?id=<?php echo $prop['id']; ?>" class="btn btn-sm btn-light border me-1" title="History"><i class="bi bi-clock-history"></i></a>
                                         <a href="../property_details.php?id=<?php echo $prop['id']; ?>" target="_blank" class="btn btn-sm btn-light border me-1" title="View"><i class="bi bi-eye"></i></a>
-                                        <button class="btn btn-sm btn-light border text-danger" title="Delete"><i class="bi bi-trash"></i></button>
+                                        <button class="btn btn-sm btn-light border text-danger" title="Delete" onclick="deleteProperty(<?php echo $prop['id']; ?>)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -111,6 +115,20 @@ $properties = $propertyModel->getByDealer($dealer_id);
     </div>
 
 </div>
+
+<!-- Delete Form (Hidden) -->
+<form id="deleteForm" action="delete_property.php" method="POST" style="display: none;">
+    <input type="hidden" name="property_id" id="deletePropertyId">
+</form>
+
+<script>
+function deleteProperty(id) {
+    if (confirm('Are you sure you want to delete this property? This action cannot be undone.')) {
+        document.getElementById('deletePropertyId').value = id;
+        document.getElementById('deleteForm').submit();
+    }
+}
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

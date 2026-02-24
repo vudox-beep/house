@@ -234,6 +234,30 @@ a:hover {
     transition: color 0.2s;
 }
 
+/* Property Card Fixed Height for Desktop */
+@media (min-width: 992px) {
+    .property-card {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .property-card .card-img-top {
+        height: 250px;
+        object-fit: cover;
+    }
+    
+    .property-card .card-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .property-card .property-features {
+        margin-top: auto;
+    }
+}
+
 @media (max-width: 768px) {
     .gallery-grid {
         grid-template-columns: 1fr;

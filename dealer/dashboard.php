@@ -23,9 +23,10 @@ try {
     $stmt->execute([':id' => $dealer_id]);
     $active_listings = $stmt->fetchColumn();
 
-    // Total Views (Mock or Real)
-    // Assuming views column exists or mock it
-    $total_views = 1250; 
+    // Total Views (Real)
+    $stmt = $pdo->prepare("SELECT SUM(views) FROM properties WHERE dealer_id = :id");
+    $stmt->execute([':id' => $dealer_id]);
+    $total_views = $stmt->fetchColumn() ?: 0; 
 
     // Subscription Status
     $stmt = $pdo->prepare("SELECT subscription_status, subscription_expiry FROM dealers WHERE user_id = :id");
@@ -51,6 +52,11 @@ try {
              $plan_type = 'Expired';
         }
     }
+
+    // Recent Transactions
+    $stmt = $pdo->prepare("SELECT * FROM transactions WHERE user_id = :id ORDER BY created_at DESC LIMIT 5");
+    $stmt->execute([':id' => $dealer_id]);
+    $recent_transactions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 } catch (PDOException $e) {
     die("DB ERROR: " . $e->getMessage());
@@ -119,6 +125,53 @@ try {
         </div>
     </div>
 
+    <!-- Recent Transactions -->
+    <?php if (count($recent_transactions) > 0): ?>
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-bold">Recent Payments</h5>
+            <a href="payments.php" class="btn btn-sm btn-outline-primary">View History</a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-muted small text-uppercase">
+                        <tr>
+                            <th class="ps-4">Reference</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($recent_transactions as $txn): ?>
+                            <tr>
+                                <td class="ps-4 small fw-bold"><?php echo htmlspecialchars($txn['reference']); ?></td>
+                                <td class="fw-bold"><?php echo htmlspecialchars($txn['currency'] . ' ' . number_format($txn['amount'], 2)); ?></td>
+                                <td>
+                                    <?php 
+                                        $status = strtolower($txn['status']);
+                                        $badge = match($status) {
+                                            'successful', 'completed' => 'success',
+                                            'pending' => 'warning',
+                                            'failed' => 'danger',
+                                            default => 'secondary'
+                                        };
+                                    ?>
+                                    <span class="badge bg-<?php echo $badge; ?>-subtle text-<?php echo $badge; ?> border border-<?php echo $badge; ?>-subtle rounded-pill px-2">
+                                        <?php echo ucfirst($status); ?>
+                                    </span>
+                                </td>
+                                <td class="text-muted small"><?php echo date('M d, Y', strtotime($txn['created_at'])); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Recent Properties -->
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
@@ -132,6 +185,7 @@ try {
                         <tr>
                             <th class="ps-4">Property</th>
                             <th>Price</th>
+                            <th>Views</th>
                             <th>Status</th>
                             <th>Date Added</th>
                             <th>Actions</th>
@@ -160,6 +214,7 @@ try {
                                         </div>
                                     </td>
                                     <td class="fw-bold text-primary"><?php echo $prop['currency'] . ' ' . number_format($prop['price']); ?></td>
+                                    <td><span class="badge bg-light text-dark border"><i class="bi bi-eye-fill text-muted"></i> <?php echo number_format($prop['views'] ?? 0); ?></span></td>
                                     <td>
                                         <?php if($prop['status'] == 'available'): ?>
                                             <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Available</span>
@@ -170,7 +225,10 @@ try {
                                     <td class="text-muted small"><?php echo date('M d, Y', strtotime($prop['created_at'])); ?></td>
                                     <td>
                                         <a href="edit_property.php?id=<?php echo $prop['id']; ?>" class="btn btn-sm btn-light border me-1"><i class="bi bi-pencil"></i></a>
-                                        <a href="../property_details.php?id=<?php echo $prop['id']; ?>" target="_blank" class="btn btn-sm btn-light border"><i class="bi bi-eye"></i></a>
+                                        <a href="../property_details.php?id=<?php echo $prop['id']; ?>" target="_blank" class="btn btn-sm btn-light border me-1"><i class="bi bi-eye"></i></a>
+                                        <button class="btn btn-sm btn-light border text-danger" onclick="deleteProperty(<?php echo $prop['id']; ?>)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -189,6 +247,20 @@ try {
     </div>
 
 </div>
+
+<!-- Delete Form (Hidden) -->
+<form id="deleteForm" action="delete_property.php" method="POST" style="display: none;">
+    <input type="hidden" name="property_id" id="deletePropertyId">
+</form>
+
+<script>
+function deleteProperty(id) {
+    if (confirm('Are you sure you want to delete this property? This action cannot be undone.')) {
+        document.getElementById('deletePropertyId').value = id;
+        document.getElementById('deleteForm').submit();
+    }
+}
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

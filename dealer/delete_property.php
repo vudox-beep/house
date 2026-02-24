@@ -1,22 +1,30 @@
 <?php
 require_once '../config/config.php';
-require_once '../includes/auth_check.php';
 require_once '../models/Property.php';
 
-check_dealer();
+// Check if user is logged in and is a dealer
+if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'dealer') {
+    header("Location: ../login.php");
+    exit;
+}
 
-if (isset($_GET['id'])) {
-    $propertyModel = new Property();
-    $property_id = $_GET['id'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['property_id'])) {
+    $property_id = $_POST['property_id'];
     $dealer_id = $_SESSION['user_id'];
 
+    $propertyModel = new Property();
+    
+    // Verify ownership and delete
     if ($propertyModel->delete($property_id, $dealer_id)) {
-        header("Location: dashboard.php?deleted=true");
+        // Redirect with success message
+        header("Location: properties.php?success=" . urlencode("Property deleted successfully."));
     } else {
-        header("Location: dashboard.php?error=failed_delete");
+        // Redirect with error message
+        header("Location: properties.php?error=" . urlencode("Failed to delete property or you do not have permission."));
     }
 } else {
-    header("Location: dashboard.php");
+    // Invalid request
+    header("Location: properties.php");
 }
 exit;
 ?>

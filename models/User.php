@@ -121,7 +121,7 @@ class User {
     }
 
     // Create or Update Google User
-    public function googleLogin($googleUser) {
+    public function loginWithGoogle($googleUser) {
         // Check if email exists
         $query = 'SELECT * FROM ' . $this->table . ' WHERE email = :email LIMIT 1';
         $stmt = $this->conn->prepare($query);
@@ -287,6 +287,23 @@ class User {
             return $stmt->execute();
         }
         return false;
+    }
+
+    // Delete User
+    public function delete($id) {
+        $query = 'DELETE FROM ' . $this->table . ' WHERE id = :id';
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':id', $id);
+        return $stmt->execute();
+    }
+
+    // Ban/Unban User
+    public function toggleBan($id, $status) {
+        $query = 'UPDATE ' . $this->table . ' SET is_banned = :status WHERE id = :id';
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':status', $status);
+        $stmt->bindParam(':id', $id);
+        return $stmt->execute();
     }
 }
 ?>
