@@ -1,0 +1,14 @@
+{
+    "name": "house/house-rent",
+    "description": "House for Rent System",
+    "type": "project",
+    "require": {
+        "phpmailer/phpmailer": "^6.8",
+        "google/apiclient": "^2.15"
+    },
+    "autoload": {
+        "psr-4": {
+            "House\\": "src/"
+        }
+    }
+}

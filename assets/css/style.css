@@ -1,0 +1,246 @@
+/* Global Overrides */
+:root {
+    --primary-color: #fbbf24; /* Yellow */
+    --primary-hover: #d97706;
+    --bs-primary: #fbbf24; /* Override Bootstrap Primary */
+    --bs-primary-rgb: 251, 191, 36;
+    --text-dark: #1f2937;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--text-dark);
+}
+
+a {
+    color: var(--text-dark);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--primary-color);
+}
+
+/* Navbar */
+.navbar {
+    background-color: #fff;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    padding: 1rem 0;
+    border-top: 5px solid var(--primary-color); /* Design Top Bar */
+}
+
+.navbar-brand {
+    font-weight: 800;
+    font-size: 1.5rem;
+    color: #111827 !important;
+}
+
+.navbar-brand i {
+    color: var(--primary-color) !important;
+}
+
+.nav-link {
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+}
+
+.nav-link:hover {
+    color: var(--primary-color) !important;
+    background-color: rgba(251, 191, 36, 0.1); /* Subtle yellow tint */
+    transform: translateY(-1px);
+}
+
+.text-primary {
+    color: var(--primary-color) !important;
+}
+
+.bg-primary {
+    background-color: var(--primary-color) !important;
+    color: #1f2937 !important; /* Dark text on yellow bg */
+}
+
+.btn-primary {
+    background-color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+    color: #1f2937 !important;
+    font-weight: 600;
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-hover) !important;
+    border-color: var(--primary-hover) !important;
+}
+
+.btn-light {
+    background-color: #fff !important;
+    border-color: #f3f4f6 !important;
+    color: #1f2937 !important;
+}
+
+.btn-light:hover {
+    background-color: #f9fafb !important;
+}
+
+/* Property Details Gallery */
+.gallery-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    grid-template-rows: 200px 200px;
+    gap: 10px;
+    height: 410px;
+    border-radius: 15px;
+    overflow: hidden;
+    margin-bottom: 2rem;
+}
+
+.gallery-main {
+    grid-column: 1 / 2;
+    grid-row: 1 / 3;
+}
+
+.gallery-item {
+    position: relative;
+    overflow: hidden;
+    height: 100%;
+}
+
+.gallery-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s;
+    cursor: pointer;
+}
+
+.gallery-item:hover .gallery-img {
+    transform: scale(1.05);
+}
+
+.gallery-more-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.6);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+/* Agent Card */
+.agent-card {
+    border: 1px solid #eee;
+    border-radius: 12px;
+    padding: 1.5rem;
+    position: sticky;
+    top: 100px;
+}
+
+.agent-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 15px;
+}
+
+.btn-contact {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 0.8rem;
+    border-radius: 8px;
+    font-weight: 600;
+    width: 100%;
+    margin-bottom: 10px;
+    transition: all 0.2s;
+    text-decoration: none;
+}
+
+.btn-whatsapp {
+    background-color: #25D366;
+    color: white;
+    border: none;
+}
+
+.btn-whatsapp:hover {
+    background-color: #128C7E;
+    color: white;
+}
+
+.btn-call {
+    background-color: var(--primary-color);
+    color: #1f2937;
+    border: none;
+}
+
+.btn-call:hover {
+    background-color: var(--primary-hover);
+    color: #1f2937;
+}
+
+.btn-live-chat {
+    background-color: #f3f4f6;
+    color: var(--text-dark);
+    border: 1px solid #e5e7eb;
+}
+
+.btn-live-chat:hover {
+    background-color: #e5e7eb;
+}
+
+/* Map Container */
+.map-container {
+    height: 350px;
+    border-radius: 12px;
+    overflow: hidden;
+    background-color: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #999;
+}
+
+/* Amenities Grid */
+.amenities-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+}
+
+.amenity-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #555;
+}
+
+.amenity-item i {
+    color: var(--primary-color);
+    font-size: 1.2rem;
+}
+
+/* Hover Helper */
+.hover-warning:hover {
+    color: var(--primary-color) !important;
+    transition: color 0.2s;
+}
+
+@media (max-width: 768px) {
+    .gallery-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: 250px;
+        height: auto;
+    }
+    .gallery-sub {
+        display: none;
+    }
+}

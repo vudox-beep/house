@@ -1,0 +1,83 @@
+/* Listings Page Styles */
+
+/* Sidebar */
+.filter-sidebar {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.filter-sidebar .form-label {
+    color: #6b7280;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+}
+
+.filter-sidebar .form-control, 
+.filter-sidebar .form-select {
+    border-color: #e5e7eb;
+    font-size: 0.95rem;
+    padding: 0.6rem 1rem;
+}
+
+.filter-sidebar .form-control:focus, 
+.filter-sidebar .form-select:focus {
+    border-color: var(--warning);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
+/* Listing Card */
+.listing-card {
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.listing-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
+}
+
+.listing-img-wrapper {
+    position: relative;
+    height: 220px;
+    overflow: hidden;
+}
+
+.listing-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+}
+
+.listing-card:hover .listing-img {
+    transform: scale(1.05);
+}
+
+.listing-badge {
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.listing-features i {
+    color: var(--warning);
+    margin-right: 4px;
+}
+
+.text-price {
+    color: #111;
+    font-weight: 800;
+}
+
+.btn-filter {
+    background-color: var(--warning);
+    color: white;
+    border: none;
+    font-weight: 700;
+}
+
+.btn-filter:hover {
+    background-color: #d97706;
+    color: white;
+}

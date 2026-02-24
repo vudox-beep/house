@@ -1,0 +1,11 @@
+vendor/
+config/config.php
+.env
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+assets/images/properties/*
+!assets/images/properties/.gitkeep
+assets/images/users/*
+!assets/images/users/.gitkeep
