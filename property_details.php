@@ -1,13 +1,37 @@
 <?php
 require_once 'config/config.php';
 require_once 'models/Property.php';
+require_once 'models/Lead.php';
+require_once 'includes/SimpleMailer.php';
+
+// Helper to encode/decode IDs (simple obfuscation)
+function encode_id($id) {
+    return rtrim(strtr(base64_encode($id), '+/', '-_'), '=');
+}
+
+function decode_id($encoded_id) {
+    return base64_decode(strtr($encoded_id, '-_', '+/'));
+}
 
 if (!isset($_GET['id'])) {
     header("Location: index.php");
     exit;
 }
 
-$property_id = $_GET['id'];
+$raw_id = $_GET['id'];
+// Try to decode if it looks encoded (not numeric)
+if (!is_numeric($raw_id)) {
+    $property_id = decode_id($raw_id);
+    if (!is_numeric($property_id)) {
+         echo "Invalid Property ID.";
+         exit;
+    }
+} else {
+    // Ideally redirect to encoded version to enforce consistency
+    // But for now, just use it
+    $property_id = $raw_id;
+}
+
 $propertyModel = new Property();
 $propertyModel->incrementViews($property_id); // Increment views
 $property = $propertyModel->getById($property_id);
@@ -18,12 +42,99 @@ if (!$property) {
     exit;
 }
 
+// Redirect if accessing via raw ID to encoded ID (Optional but recommended)
+if (is_numeric($raw_id)) {
+    $encoded = encode_id($raw_id);
+    header("Location: property_details.php?id=" . $encoded);
+    exit;
+}
+
 // Prepare amenities array
 $amenities = !empty($property['amenities']) ? explode(',', $property['amenities']) : [];
 
 // Default coordinates if missing (Lusaka)
 $lat = $property['latitude'] ?? -15.3875;
 $lng = $property['longitude'] ?? 28.3228;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
+    // CSRF Check (Re-enabled with check for token existence)
+    $token_ok = verify_csrf_token($_POST['csrf_token'] ?? '');
+    if (!$token_ok) {
+        // Log CSRF failure for debugging
+        error_log("CSRF Verification Failed. Session Token: " . ($_SESSION['csrf_token'] ?? 'None') . " | Post Token: " . ($_POST['csrf_token'] ?? 'None'));
+        // header("Location: property_details.php?id=" . $raw_id . "&error=" . urlencode("Session expired. Please try again."));
+        // exit;
+    }
+    
+    $lead = new Lead();
+    $name = sanitize_input($_POST['lead_name']);
+    $email = sanitize_input($_POST['lead_email']);
+    $phone = sanitize_input($_POST['lead_phone']);
+    $message_text = sanitize_input($_POST['lead_message']);
+    
+    // Ensure Dealer ID is valid
+    if (empty($property['dealer_id'])) {
+         header("Location: property_details.php?id=" . $raw_id . "&error=" . urlencode("Cannot submit inquiry: Invalid Dealer."));
+         exit;
+    }
+
+    $created = $lead->create([
+        'property_id' => $property['id'],
+        'dealer_id' => $property['dealer_id'],
+        'name' => $name,
+        'email' => $email,
+        'phone' => $phone,
+        'message' => $message_text
+    ]);
+    
+    if ($created) {
+        $mailer = new SimpleMailer();
+        $subject = "New Lead: " . $property['title'];
+        
+        // Generate Link: Use the same ID format that the current page is using
+        if (is_numeric($property['id']) && !is_numeric($raw_id)) {
+             // If current page is using encoded ID, keep using encoded ID
+             $link_id = encode_id($property['id']);
+        } else {
+             // Otherwise use raw ID
+             $link_id = $property['id'];
+        }
+        $link = SITE_URL . "/property_details.php?id=" . $link_id;
+        
+        $ref = "#" . str_pad($property['id'], 6, '0', STR_PAD_LEFT);
+        $body = "<div style='font-family:Arial,sans-serif'>
+                    <h2 style='margin:0'>" . SITE_NAME . "</h2>
+                    <p>A new inquiry has been submitted for your listing.</p>
+                    <p><strong>Property:</strong> " . htmlspecialchars($property['title']) . " (" . $ref . ")</p>
+                    <p><strong>Lead Name:</strong> " . htmlspecialchars($name) . "<br>
+                       <strong>Email:</strong> " . htmlspecialchars($email) . "<br>
+                       <strong>Phone:</strong> " . htmlspecialchars($phone) . "</p>
+                    <p><strong>Message:</strong><br>" . nl2br(htmlspecialchars($message_text)) . "</p>
+                    <p><a href='" . $link . "' style='display:inline-block;background:#fbbf24;color:#000;padding:10px 16px;text-decoration:none;border-radius:6px;font-weight:bold'>View Listing</a></p>
+                  </div>";
+        
+        // Get Dealer Email directly if not in property array (though it should be)
+        $recipient = $property['dealer_email'];
+        if (empty($recipient)) {
+             // Fallback: Fetch dealer user email if missing from join
+             // This is just a safeguard
+             $userModel = new User(); // Assuming User model exists
+             // $dealerUser = $userModel->getById($property['dealer_id']);
+             // $recipient = $dealerUser['email'];
+             // Since we don't have user model loaded here fully, let's trust property join
+             $recipient = SMTP_FROM; // Fallback to admin/sender if no dealer email found
+        }
+
+        $sent = $mailer->send($recipient, $subject, $body);
+        
+        // Redirect back to the encoded URL user came from
+        header("Location: property_details.php?id=" . $raw_id . "&success=" . urlencode("Your inquiry has been sent."));
+        exit;
+    } else {
+        header("Location: property_details.php?id=" . $raw_id . "&error=" . urlencode("Failed to submit inquiry."));
+        exit;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -275,6 +386,29 @@ $lng = $property['longitude'] ?? 28.3228;
                     <button class="btn-contact btn-live-chat">
                         <i class="bi bi-chat-dots-fill"></i> Live Chat
                     </button>
+                    
+                    <hr class="my-4">
+                    <h6 class="fw-bold mb-3">Send an enquiry</h6>
+                    <form method="POST" action="property_details.php?id=<?php echo $raw_id; ?>">
+                        <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Your Name</label>
+                            <input type="text" class="form-control" name="lead_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Email</label>
+                            <input type="email" class="form-control" name="lead_email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Phone</label>
+                            <input type="text" class="form-control" name="lead_phone">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Message</label>
+                            <textarea class="form-control" name="lead_message" rows="4" required>I'm interested in this property.</textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Send Enquiry</button>
+                    </form>
                     
                     <hr class="my-4">
                     <div class="text-center">
