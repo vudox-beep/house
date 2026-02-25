@@ -209,7 +209,14 @@ $lng = $property['longitude'] ?? 28.3228;
                         elseif (preg_match('/(?:vimeo\.com\/)([0-9]+)/', $video_url, $matches)) {
                              echo '<iframe src="https://player.vimeo.com/video/' . $matches[1] . '" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>';
                         }
-                        // Default to Link/Lightbox if not embeddable
+                        // Default to standard video tag if file extension detected (mp4, webm, ogg) or looks like a direct file
+                        elseif (preg_match('/\.(mp4|webm|ogg|mov)$/i', $video_url) || strpos($video_url, 'uploads/') !== false) {
+                            echo '<video controls playsinline class="w-100 h-100" style="object-fit: cover;">
+                                    <source src="' . htmlspecialchars($video_url) . '" type="video/mp4">
+                                    Your browser does not support the video tag.
+                                  </video>';
+                        }
+                        // Fallback to Link/Lightbox
                         else {
                             echo '<div class="d-flex align-items-center justify-content-center h-100 flex-column">
                                     <i class="bi bi-play-circle-fill display-1 text-white mb-3"></i>

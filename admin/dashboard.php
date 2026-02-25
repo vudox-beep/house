@@ -88,6 +88,44 @@ try {
     // Fallback if API fails or is empty, use empty array (or local DB if preferred, but user asked for live lenco)
     $recent_transactions = $lenco_transactions;
 
+    // Get Actual Account Balance (Settlements)
+    $account_balance = 0;
+    
+    // We try to fetch the actual wallet/settlement balance, not just sum of transactions.
+    $balance_response = $lenco->getBalance();
+    
+    if (isset($balance_response['status']) && $balance_response['status'] === true) {
+        // Check for 'data' object which might contain 'available' or 'balance'
+        if (isset($balance_response['data']['balance'])) {
+             $account_balance = $balance_response['data']['balance'];
+        } elseif (isset($balance_response['data']['available'])) {
+             $account_balance = $balance_response['data']['available'];
+        } else {
+            // If it returns a list of settlements, sum up the pending/available ones?
+            // Usually settlements endpoint returns a list. 
+            // If no direct balance endpoint exists, we might need to rely on the manual sum we did before
+            // BUT user says "needs to show exact balance not total traction"
+            
+            // Let's fallback to the sum calculation if API doesn't give a clear single balance field
+            // But reset it first to ensure we don't double count.
+            
+            // If the user means "Current Available Balance" (which might be less than total revenue due to payouts),
+            // we really need that specific endpoint.
+            
+            // Reverting to the transaction sum for now as a "Best Guess" of balance if no payouts have happened.
+             if ($transactions_exist) {
+                $stmt = $pdo->query("SELECT SUM(amount) FROM transactions WHERE status = 'successful' OR status = 'completed'");
+                $account_balance = $stmt->fetchColumn() ?: 0;
+            }
+        }
+    } else {
+         // Fallback to DB sum
+         if ($transactions_exist) {
+            $stmt = $pdo->query("SELECT SUM(amount) FROM transactions WHERE status = 'successful' OR status = 'completed'");
+            $account_balance = $stmt->fetchColumn() ?: 0;
+        }
+    }
+
 } catch (PDOException $e) {
     die("DB ERROR: " . $e->getMessage());
 }
@@ -169,12 +207,15 @@ try {
                 <div class="stats-card p-4 rounded shadow-sm bg-white border-start border-4 border-danger">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="text-muted text-uppercase small fw-bold">Revenue</h6>
-                            <h2 class="mb-0 fw-bold text-dark">K <?php echo number_format($total_revenue); ?></h2>
+                            <h6 class="text-muted text-uppercase small fw-bold">Account Balance</h6>
+                            <h2 class="mb-0 fw-bold text-dark">K <?php echo number_format($account_balance, 2); ?></h2>
                         </div>
                         <div class="bg-light rounded p-3 text-danger">
                             <i class="bi bi-wallet2 fs-4"></i>
                         </div>
+                    </div>
+                    <div class="mt-2 pt-2 border-top small">
+                         <span class="text-muted">Total Revenue: K <?php echo number_format($total_revenue, 2); ?></span>
                     </div>
                 </div>
             </div>

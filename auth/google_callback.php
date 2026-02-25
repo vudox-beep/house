@@ -11,7 +11,7 @@ if (isset($_GET['code'])) {
         'client_id' => GOOGLE_CLIENT_ID,
         'client_secret' => GOOGLE_CLIENT_SECRET,
         'redirect_uri' => GOOGLE_REDIRECT_URL,
-        'grant_type' => 'authorization_code'
+        'grant_type' => 'authorization_code',
     ];
 
     $ch = curl_init();
@@ -40,7 +40,7 @@ if (isset($_GET['code'])) {
         
         if (isset($googleUser['email'])) {
             $userModel = new User();
-            $user = $userModel->googleLogin($googleUser);
+            $user = $userModel->loginWithGoogle($googleUser);
             
             if ($user) {
                 $_SESSION['user_id'] = $user['id'];

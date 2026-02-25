@@ -1,7 +1,7 @@
 <?php
 require_once 'config/config.php';
 require_once 'models/User.php';
-require_once 'includes/SimpleSMTP.php';
+require_once 'includes/SimpleMailer.php';
 
 $error = '';
 $success = '';
@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         if ($user->register($data)) {
             // Send Email
-            $smtp = new SimpleSMTP(SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS);
+            $mailer = new SimpleMailer();
             $verifyLink = SITE_URL . "/verify_email.php?token=" . $token;
             
             $subject = "Verify Your Account - " . SITE_NAME;
@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </body>
             </html>";
 
-            if ($smtp->send($email, $subject, $body, SITE_NAME)) {
+            if ($mailer->send($email, $subject, $body)) {
                 $success = "Registration successful! Check your email.";
             } else {
                 $success = "Registration successful, but failed to send email.";

@@ -167,8 +167,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                             <a href="property_details.php?id=<?php echo $property['id']; ?>">
                                 <img src="<?php echo $main_image; ?>" class="featured-img" alt="<?php echo htmlspecialchars($property['title']); ?>">
                             </a>
+                            <span class="position-absolute top-0 start-0 badge bg-white text-dark m-3 shadow-sm">
+                                <?php echo (($property['listing_purpose'] ?? 'rent') === 'sale') ? 'Selling' : 'Rent'; ?>
+                            </span>
+                            <span class="position-absolute top-0 end-0 badge bg-success-subtle text-success m-3 shadow-sm">
+                                <i class="bi bi-check-circle-fill"></i> Verified
+                            </span>
                             <span class="featured-badge"><i class="bi bi-star-fill text-warning"></i> 4.9</span>
-                            <span class="featured-price-badge"><?php echo $property['currency'] . ' ' . number_format($property['price']); ?></span>
+                            <span class="featured-price-badge">
+                                <?php echo $property['currency'] . ' ' . number_format($property['price']); ?>
+                                <?php echo (($property['listing_purpose'] ?? 'rent') === 'rent') ? ' / mo' : ''; ?>
+                            </span>
                         </div>
                         <div class="featured-body">
                             <div class="featured-title"><?php echo htmlspecialchars($property['title']); ?></div>

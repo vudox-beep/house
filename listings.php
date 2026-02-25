@@ -69,10 +69,9 @@ $properties = $propertyModel->search($filters);
                         <div class="mb-3">
                             <label class="form-label fw-bold small text-uppercase">Search Location</label>
                             <div class="input-group">
-                                <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
                                 <input type="text" class="form-control" name="location" id="locationSearch" placeholder="City, Country, or Area..." value="<?php echo htmlspecialchars($filters['location']); ?>">
                                 <button class="btn btn-outline-secondary" type="button" id="btnNearMe" title="Use my location">
-                                    <i class="bi bi-geo-alt-fill text-primary"></i>
+                                    <i class="bi bi-geo-alt-fill"></i>
                                 </button>
                             </div>
                             <input type="hidden" name="latitude" id="latitude">
@@ -140,7 +139,9 @@ $properties = $propertyModel->search($filters);
                             </select>
                         </div>
 
-                        <button type="submit" class="btn btn-filter w-100 py-2">Apply Filters</button>
+                        <button type="submit" class="btn btn-primary w-100 py-2">
+                            <i class="bi bi-search me-1"></i> Search
+                        </button>
                     </form>
                 </div>
             </div>
