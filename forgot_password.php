@@ -1,7 +1,7 @@
 <?php
 require_once 'config/config.php';
 require_once 'models/User.php';
-require_once 'includes/SimpleSMTP.php';
+require_once 'includes/SimpleMailer.php';
 
 $error = '';
 $success = '';
@@ -24,21 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 // Send Email
                 $resetLink = SITE_URL . "/reset_password.php?token=" . $token;
                 
-                // Fallback for localhost dev if SMTP fails or not configured
-                $dev_link_msg = "";
-                if (strpos(SITE_URL, 'localhost') !== false) {
-                    $dev_link_msg = "<br><br><b>Dev Mode:</b> <a href='$resetLink'>Click here to reset (Localhost)</a>";
-                }
-
                 $subject = "Reset Your Password - " . SITE_NAME;
-                $body = "Hi,<br><br>We received a request to reset your password. Click the link below to create a new password:<br><br><a href='$resetLink' style='background:#fbbf24; color:#1f2937; padding:10px 20px; text-decoration:none; border-radius:5px; font-weight:bold;'>Reset Password</a><br><br>This link expires in 1 hour.<br><br>If you didn't ask for this, please ignore this email.$dev_link_msg";
+                $body = "Hi,<br><br>We received a request to reset your password. Click the link below to create a new password:<br><br><a href='$resetLink' style='background:#fbbf24; color:#1f2937; padding:10px 20px; text-decoration:none; border-radius:5px; font-weight:bold;'>Reset Password</a><br><br>This link expires in 1 hour.<br><br>If you didn't ask for this, please ignore this email.";
 
-                $smtp = new SimpleSMTP(SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS);
-                if ($smtp->send($email, $subject, $body, SITE_NAME)) {
+                $mailer = new SimpleMailer();
+                if ($mailer->send($email, $subject, $body)) {
                     $success = "Password reset link sent to your email.";
                 } else {
-                    $error = "Failed to send email. " . ($dev_link_msg ? "Check below." : "Please try again later.");
-                    if ($dev_link_msg) $success = $dev_link_msg; // Show link for dev
+                    $error = "Failed to send email. Please try again later.";
                 }
             } else {
                 $error = "Something went wrong. Please try again.";
