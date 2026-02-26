@@ -17,6 +17,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         if ($loggedInUser === "unverified") {
             $error = "Please verify your email address before logging in.";
+        } elseif ($loggedInUser === "banned") {
+            $error = "Your account has been banned. Please contact support.";
         } elseif ($loggedInUser) {
             $_SESSION['user_id'] = $loggedInUser['id'];
             $_SESSION['user_role'] = $loggedInUser['role'];

@@ -87,6 +87,11 @@ class User {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if($user) {
+            // Check if banned
+            if ($user['is_banned'] == 1 && $user['role'] !== 'admin') {
+                return "banned";
+            }
+            
             // Check verification (Skip for admin)
             if ($user['is_verified'] == 0 && $user['role'] !== 'admin') {
                 return "unverified";

@@ -1,10 +1,13 @@
 <?php
 require_once '../config/config.php';
 require_once '../models/User.php';
+require_once '../models/Property.php';
 require_once '../includes/LencoAPI.php';
 
 // Auth Check (Admin only)
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
     header("Location: ../login.php");
     exit();

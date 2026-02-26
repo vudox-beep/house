@@ -8,6 +8,22 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'dealer') {
     header("Location: ../login.php");
     exit();
 }
+
+// Fetch Subscription Status
+require_once __DIR__ . '/../../models/User.php';
+$userObj = new User();
+$dealer = $userObj->getDealerProfile($_SESSION['user_id']);
+$subStatus = $dealer['subscription_status'] ?? 'inactive';
+$subExpiry = $dealer['subscription_expiry'] ?? null;
+
+// Calculate days remaining
+$daysLeft = 0;
+if ($subExpiry) {
+    $diff = strtotime($subExpiry) - time();
+    $daysLeft = ceil($diff / (60 * 60 * 24));
+}
+$isNearExpiry = ($daysLeft <= 7 && $daysLeft >= 0);
+$isExpired = ($subStatus === 'active' && $subExpiry && strtotime($subExpiry) < time());
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -33,6 +49,63 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'dealer') {
             <h4 class="mb-0 fw-bold">Dashboard</h4>
         </div>
         <div class="d-flex align-items-center">
+            
+            <!-- Subscription Alert Dropdown -->
+            <div class="dropdown me-4">
+                <a href="#" class="text-decoration-none position-relative" data-bs-toggle="dropdown">
+                    <?php if($isExpired): ?>
+                        <i class="bi bi-exclamation-circle-fill text-danger fs-5"></i>
+                    <?php elseif($isNearExpiry): ?>
+                        <i class="bi bi-bell-fill text-warning fs-5"></i>
+                        <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle">
+                            <span class="visually-hidden">New alerts</span>
+                        </span>
+                    <?php elseif($subStatus === 'active'): ?>
+                        <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                    <?php else: ?>
+                         <i class="bi bi-dash-circle text-muted fs-5"></i>
+                    <?php endif; ?>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 mt-2 p-3" style="width: 280px;">
+                    <li>
+                        <h6 class="dropdown-header text-uppercase fw-bold small text-muted mb-2">Subscription Status</h6>
+                    </li>
+                    <li>
+                        <div class="d-flex align-items-center mb-2">
+                            <?php if($subStatus === 'active' && !$isExpired): ?>
+                                <div class="bg-success-subtle text-success rounded-circle p-2 me-3"><i class="bi bi-check-lg"></i></div>
+                                <div>
+                                    <div class="fw-bold text-success">Active Plan</div>
+                                    <?php if($subExpiry): ?>
+                                        <div class="small text-muted">Expires in <?php echo $daysLeft; ?> days</div>
+                                    <?php else: ?>
+                                        <div class="small text-muted">Lifetime Access</div>
+                                    <?php endif; ?>
+                                </div>
+                            <?php elseif($isExpired): ?>
+                                <div class="bg-danger-subtle text-danger rounded-circle p-2 me-3"><i class="bi bi-x-lg"></i></div>
+                                <div>
+                                    <div class="fw-bold text-danger">Plan Expired</div>
+                                    <div class="small text-muted">Please renew now.</div>
+                                </div>
+                            <?php else: ?>
+                                <div class="bg-secondary-subtle text-secondary rounded-circle p-2 me-3"><i class="bi bi-pause-fill"></i></div>
+                                <div>
+                                    <div class="fw-bold text-secondary">Inactive</div>
+                                    <div class="small text-muted">No active plan.</div>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </li>
+                    <?php if($isNearExpiry || $isExpired || $subStatus !== 'active'): ?>
+                        <li><hr class="dropdown-divider my-2"></li>
+                        <li>
+                            <a href="subscription.php" class="btn btn-primary btn-sm w-100 fw-bold">Manage Subscription</a>
+                        </li>
+                    <?php endif; ?>
+                </ul>
+            </div>
+
             <span class="me-3 fw-bold text-muted d-none d-md-block"><?php echo $_SESSION['user_name']; ?></span>
             <?php 
             // Fallback if session var not set (e.g. older session)

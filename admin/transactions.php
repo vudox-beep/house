@@ -11,6 +11,13 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
     exit();
 }
 
+// Helper function to mask reference
+function mask_reference($ref) {
+    if (strlen($ref) <= 8) return $ref;
+    return substr($ref, 0, 4) . '....' . substr($ref, -4);
+}
+
+
 // Fetch Transactions (Assuming a transactions table exists, otherwise use mock or empty)
 $view = $_GET['view'] ?? 'local';
 $lenco_transactions = [];
@@ -115,7 +122,9 @@ try {
                                     <?php if (count($lenco_transactions) > 0): ?>
                                         <?php foreach ($lenco_transactions as $txn): ?>
                                             <tr>
-                                                <td class="ps-4 small fw-bold"><?php echo $txn['reference'] ?? '-'; ?></td>
+                                                <td class="ps-4 small fw-bold" title="<?php echo $txn['reference']; ?>">
+                                                    <?php echo mask_reference($txn['reference'] ?? '-'); ?>
+                                                </td>
                                                 <td class="fw-bold"><?php echo ($txn['currency'] ?? 'ZMW') . ' ' . number_format($txn['amount'] ?? 0, 2); ?></td>
                                                 <td>
                                                     <?php 
@@ -196,7 +205,9 @@ try {
                                 <?php if (count($transactions) > 0): ?>
                                     <?php foreach ($transactions as $txn): ?>
                                         <tr>
-                                            <td class="ps-4 fw-bold text-primary small"><?php echo htmlspecialchars($txn['reference']); ?></td>
+                                            <td class="ps-4 fw-bold text-primary small" title="<?php echo $txn['reference']; ?>">
+                                                <?php echo mask_reference($txn['reference']); ?>
+                                            </td>
                                             <td>
                                                 <div class="d-flex align-items-center">
                                                     <div class="bg-light rounded-circle p-2 me-2 d-none d-md-block">

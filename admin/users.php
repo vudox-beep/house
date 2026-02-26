@@ -225,21 +225,21 @@ try {
                                             
                                             <?php if($user['role'] !== 'admin'): ?>
                                                 <?php if(empty($user['is_banned'])): ?>
-                                                    <button class="btn btn-sm btn-light border text-warning me-1" 
-                                                            onclick="confirmAction('toggle_ban', <?php echo $user['id']; ?>, 'Ban this user?', 1)"
+                                                    <button class="btn btn-sm btn-outline-warning border me-1" 
+                                                            onclick="confirmBan(<?php echo $user['id']; ?>, 'Ban this user?', 1)"
                                                             title="Ban User">
                                                         <i class="bi bi-slash-circle"></i>
                                                     </button>
                                                 <?php else: ?>
-                                                    <button class="btn btn-sm btn-light border text-success me-1" 
-                                                            onclick="confirmAction('toggle_ban', <?php echo $user['id']; ?>, 'Unban this user?', 0)"
+                                                    <button class="btn btn-sm btn-outline-success border me-1" 
+                                                            onclick="confirmBan(<?php echo $user['id']; ?>, 'Unban this user?', 0)"
                                                             title="Unban User">
                                                         <i class="bi bi-check-circle"></i>
                                                     </button>
                                                 <?php endif; ?>
 
-                                                <button class="btn btn-sm btn-light border text-danger" 
-                                                        onclick="confirmAction('delete_user', <?php echo $user['id']; ?>, 'Delete this user permanently? This cannot be undone.')"
+                                                <button class="btn btn-sm btn-outline-danger border" 
+                                                        onclick="confirmDelete(<?php echo $user['id']; ?>)"
                                                         title="Delete User">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
@@ -266,14 +266,13 @@ try {
         <div class="modal-dialog">
             <div class="modal-content">
                 <form method="POST">
+                    <input type="hidden" name="action" value="update_subscription">
+                    <input type="hidden" name="user_id" id="sub_user_id">
                     <div class="modal-header">
                         <h5 class="modal-title">Manage Subscription</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <input type="hidden" name="action" value="update_subscription">
-                        <input type="hidden" name="user_id" id="sub_user_id">
-                        
                         <div class="mb-3">
                             <label class="form-label">Status</label>
                             <select class="form-select" name="subscription_status" id="sub_status">
@@ -297,6 +296,19 @@ try {
         </div>
     </div>
 
+    <!-- Delete Confirmation Form -->
+    <form id="deleteForm" method="POST" style="display: none;">
+        <input type="hidden" name="action" value="delete_user">
+        <input type="hidden" name="user_id" id="delete_user_id">
+    </form>
+
+    <!-- Ban Confirmation Form -->
+    <form id="banForm" method="POST" style="display: none;">
+        <input type="hidden" name="action" value="toggle_ban">
+        <input type="hidden" name="user_id" id="ban_user_id">
+        <input type="hidden" name="ban_status" id="ban_status">
+    </form>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     function manageSubscription(id, status, expiry) {
@@ -304,6 +316,21 @@ try {
         document.getElementById('sub_status').value = status;
         document.getElementById('sub_expiry').value = expiry;
         new bootstrap.Modal(document.getElementById('subscriptionModal')).show();
+    }
+
+    function confirmDelete(userId) {
+        if (confirm('Are you sure you want to delete this user? This action cannot be undone and will remove all their data including properties and leads.')) {
+            document.getElementById('delete_user_id').value = userId;
+            document.getElementById('deleteForm').submit();
+        }
+    }
+
+    function confirmBan(userId, message, status) {
+        if (confirm(message)) {
+            document.getElementById('ban_user_id').value = userId;
+            document.getElementById('ban_status').value = status;
+            document.getElementById('banForm').submit();
+        }
     }
     </script>
 </body>
