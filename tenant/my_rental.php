@@ -65,6 +65,12 @@ $rental = $stmt->fetch(PDO::FETCH_ASSOC);
                                 <span class="fw-medium"><?php echo date('M d, Y', strtotime($rental['start_date'])); ?></span>
                             </div>
                             <div class="col-6">
+                                <small class="text-muted d-block">Next Due Date</small>
+                                <span class="fw-bold text-danger"><?php echo date('M 01, Y', strtotime('+1 month')); ?></span>
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-3">
+                             <div class="col-6">
                                 <small class="text-muted d-block">Status</small>
                                 <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Active</span>
                             </div>

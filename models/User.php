@@ -96,7 +96,7 @@ class User {
             if ($user['is_verified'] == 0 && $user['role'] !== 'admin') {
                 return "unverified";
             }
-            if (password_verify($password, $user['password'])) {
+            if (!empty($user['password']) && password_verify($password, $user['password'])) {
                 return $user;
             }
         }

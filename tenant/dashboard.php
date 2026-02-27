@@ -94,7 +94,28 @@ $next_due_date = date('M 01, Y', strtotime('+1 month'));
         </div>
     </div>
 
-    <?php if(!$active_rental): ?>
+    <?php if($active_rental): ?>
+    <!-- Reference ID Banner -->
+    <div class="alert alert-light border shadow-sm mb-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div class="d-flex align-items-center">
+            <div class="bg-primary-subtle text-primary rounded-circle p-3 me-3">
+                <i class="bi bi-bank2 fs-4"></i>
+            </div>
+            <div>
+                <h6 class="fw-bold mb-1 text-dark">Payment Reference ID</h6>
+                <p class="text-muted small mb-0">Use this 16-digit ID for all bank deposit narrations/references.</p>
+            </div>
+        </div>
+        <div class="d-flex align-items-center bg-white border rounded-3 px-3 py-2">
+            <span class="fs-5 fw-bold font-monospace text-primary me-3 tracking-wide">
+                <?php echo chunk_split($active_rental['payment_reference'] ?? 'PENDING', 4, ' '); ?>
+            </span>
+            <button class="btn btn-link btn-sm p-0 text-muted" onclick="navigator.clipboard.writeText('<?php echo $active_rental['payment_reference'] ?? ''; ?>')" title="Copy ID">
+                <i class="bi bi-copy fs-5"></i>
+            </button>
+        </div>
+    </div>
+    <?php else: ?>
     <div class="alert alert-info border-0 shadow-sm d-flex align-items-center" role="alert">
         <i class="bi bi-info-circle-fill fs-4 me-3 text-info"></i>
         <div>

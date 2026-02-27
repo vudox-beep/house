@@ -13,12 +13,43 @@ if (!function_exists('encode_id')) {
     }
 }
 
-$leadModel = new Lead();
 $dealer_id = $_SESSION['user_id'];
-$leads = $leadModel->getByDealer($dealer_id);
+$db = new Database();
+$conn = $db->connect();
+
+// Fetch Dealer Data (for subscription)
+$stmt_user = $conn->prepare("SELECT subscription_status, subscription_expiry FROM dealers WHERE user_id = :id");
+$stmt_user->execute([':id' => $dealer_id]);
+$dealer_data = $stmt_user->fetch(PDO::FETCH_ASSOC);
+
+// Check Subscription
+$is_subscribed = false;
+if ($dealer_data && $dealer_data['subscription_status'] === 'active' && strtotime($dealer_data['subscription_expiry']) > time()) {
+    $is_subscribed = true;
+}
+
+$leadModel = new Lead();
+$leads = $is_subscribed ? $leadModel->getByDealer($dealer_id) : [];
 ?>
 
 <div class="container-fluid py-4">
+    <?php if(!$is_subscribed): ?>
+        <div class="d-flex align-items-center justify-content-center" style="min-height: 60vh;">
+            <div class="text-center">
+                <div class="mb-4 text-warning">
+                    <i class="bi bi-lock-fill" style="font-size: 4rem;"></i>
+                </div>
+                <h2 class="fw-bold mb-3">Access Restricted</h2>
+                <p class="text-muted mb-4 fs-5" style="max-width: 500px; margin: 0 auto;">
+                    Your dealer subscription is currently <strong>inactive</strong>. <br>
+                    Please renew your subscription to view your leads and inquiries.
+                </p>
+                <a href="subscribe.php" class="btn btn-primary btn-lg px-5 fw-bold rounded-pill shadow-sm">
+                    <i class="bi bi-credit-card-2-front me-2"></i> Renew Subscription
+                </a>
+            </div>
+        </div>
+    <?php else: ?>
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h4 class="mb-1 fw-bold">Leads & Inquiries</h4>
@@ -116,4 +147,5 @@ $leads = $leadModel->getByDealer($dealer_id);
             </div>
         </div>
     </div>
+    <?php endif; ?>
 </div>
