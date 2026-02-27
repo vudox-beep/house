@@ -40,9 +40,46 @@ if (isset($_GET['code'])) {
         
         if (isset($googleUser['email'])) {
             $userModel = new User();
-            $user = $userModel->loginWithGoogle($googleUser);
+            
+            // Check Action Intent (set in google_login.php)
+            $authAction = $_SESSION['auth_action'] ?? 'login';
+            
+            // First check if user exists by email
+            if ($userModel->emailExists($googleUser['email'])) {
+                // USER EXISTS
+                
+                if ($authAction === 'signup') {
+                    // User clicked "Sign Up" but account exists -> ERROR
+                    header("Location: ../login.php?error=" . urlencode("An account with this email already exists. Please log in."));
+                    exit;
+                } else {
+                    // User clicked "Login" and account exists -> LOGIN SUCCESS
+                    $user = $userModel->loginWithGoogle($googleUser);
+                }
+                
+            } else {
+                // NEW USER
+                
+                if ($authAction === 'login') {
+                    // User clicked "Login" but no account found -> ERROR (or redirect to signup)
+                    // User requested: "if account doesnt eit say no rocord found register first"
+                    header("Location: ../register.php?error=" . urlencode("No record found. Please register first."));
+                    exit;
+                } else {
+                    // User clicked "Sign Up" and no account found -> SIGNUP SUCCESS
+                    $_SESSION['google_signup_data'] = $googleUser;
+                    header("Location: complete_profile.php");
+                    exit;
+                }
+            }
             
             if ($user) {
+                // Check if banned
+                if ($user['is_banned'] == 1) {
+                    echo "Your account has been banned. Please contact support. <a href='../login.php'>Back to Login</a>";
+                    exit;
+                }
+
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['user_role'] = $user['role'];
                 $_SESSION['user_name'] = $user['name'];
@@ -51,6 +88,9 @@ if (isset($_GET['code'])) {
                     header("Location: ../dealer/dashboard.php");
                 } elseif ($user['role'] == 'admin') {
                     header("Location: ../admin/dashboard.php");
+                } elseif ($user['role'] == 'user') {
+                    // Redirect Tenants/Users to Tenant Dashboard
+                    header("Location: ../tenant/dashboard.php");
                 } else {
                     header("Location: ../index.php");
                 }

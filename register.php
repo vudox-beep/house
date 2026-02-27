@@ -187,6 +187,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <?php if($error): ?>
                             <div class="alert alert-danger"><?php echo $error; ?></div>
                         <?php endif; ?>
+                        
+                        <?php if(isset($_GET['error'])): ?>
+                            <div class="alert alert-danger d-flex align-items-center" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2"></i>
+                                <div><?php echo htmlspecialchars($_GET['error']); ?></div>
+                            </div>
+                        <?php endif; ?>
+
                         <?php if($success): ?>
                             <div class="alert alert-success"><?php echo $success; ?></div>
                         <?php endif; ?>
@@ -254,14 +262,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>
 
                             <div class="row g-2">
-                                <div class="col-6">
-                                    <a href="auth/google_login.php" class="social-btn text-decoration-none">
-                                        <i class="bi bi-google"></i> Google
-                                    </a>
-                                </div>
-                                <div class="col-6">
-                                    <a href="#" class="social-btn text-decoration-none">
-                                        <i class="bi bi-apple"></i> Apple
+                                <div class="col-12">
+                                    <a href="auth/google_login.php?action=signup" class="social-btn text-decoration-none">
+                                        <i class="bi bi-google text-danger"></i> Google
                                     </a>
                                 </div>
                             </div>

@@ -55,6 +55,11 @@
             </a>
         </li>
         <li class="sidebar-item">
+            <a href="tenants.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'tenants.php' ? 'active' : ''; ?>">
+                <i class="bi bi-people-fill"></i> Manage Tenants
+            </a>
+        </li>
+        <li class="sidebar-item">
             <a href="subscribe.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'subscribe.php' ? 'active' : ''; ?>">
                 <i class="bi bi-credit-card-2-front-fill"></i> Subscription
             </a>

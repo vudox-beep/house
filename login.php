@@ -32,6 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 header("Location: dealer/dashboard.php");
             } elseif ($loggedInUser['role'] == 'admin') {
                 header("Location: admin/dashboard.php");
+            } elseif ($loggedInUser['role'] == 'user') {
+                // Redirect Tenants/Users to Tenant Dashboard
+                header("Location: tenant/dashboard.php");
             } else {
                 header("Location: index.php");
             }
@@ -112,6 +115,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>
                         <?php endif; ?>
                         
+                        <?php if(isset($_GET['error'])): ?>
+                            <div class="alert alert-danger d-flex align-items-center" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2"></i>
+                                <div><?php echo htmlspecialchars($_GET['error']); ?></div>
+                            </div>
+                        <?php endif; ?>
+
                         <?php if(isset($_GET['registered'])): ?>
                             <div class="alert alert-success">Registration successful! Please login.</div>
                         <?php endif; ?>
@@ -151,18 +161,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>
 
                             <div class="row g-2">
-                                <div class="col-6">
-                                    <a href="auth/google_login.php" class="social-btn text-decoration-none">
-                                        <i class="bi bi-google"></i> Google
-                                    </a>
-                                </div>
-                                <div class="col-6">
-                                    <a href="#" class="social-btn text-decoration-none">
-                                        <i class="bi bi-apple"></i> Apple
+                                <div class="col-12">
+                                    <a href="auth/google_login.php?action=login" class="social-btn text-decoration-none">
+                                        <i class="bi bi-google text-danger"></i> Google
                                     </a>
                                 </div>
                             </div>
-                            
+
                             <div class="text-center mt-4">
                                 <p class="small text-muted">Don't have an account? <a href="register.php" class="fw-bold text-dark text-decoration-none">Sign up</a></p>
                             </div>

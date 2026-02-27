@@ -28,6 +28,11 @@ try {
     $stmt->execute([':id' => $dealer_id]);
     $total_views = $stmt->fetchColumn() ?: 0; 
 
+    // Total Tenants
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM rentals WHERE dealer_id = :id AND status = 'active'");
+    $stmt->execute([':id' => $dealer_id]);
+    $total_tenants = $stmt->fetchColumn();
+
     // Subscription Status
     $stmt = $pdo->prepare("SELECT subscription_status, subscription_expiry FROM dealers WHERE user_id = :id");
     $stmt->execute([':id' => $dealer_id]);
@@ -90,7 +95,7 @@ try {
 
     <!-- Stats Grid -->
     <div class="row g-4 mb-5">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="stats-card">
                 <div class="stats-icon icon-brown">
                     <i class="bi bi-houses-fill"></i>
@@ -101,7 +106,7 @@ try {
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="stats-card">
                 <div class="stats-icon icon-orange">
                     <i class="bi bi-check-circle-fill"></i>
@@ -112,7 +117,18 @@ try {
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-icon icon-green">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+                <div class="stats-info">
+                    <h6>Active Tenants</h6>
+                    <h3><?php echo $total_tenants; ?></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
             <div class="stats-card">
                 <div class="stats-icon icon-green">
                     <i class="bi bi-eye-fill"></i>
