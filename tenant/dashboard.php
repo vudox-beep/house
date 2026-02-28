@@ -16,12 +16,59 @@ $sql = "SELECT r.*, p.title, p.location, pi.image_path as image
         FROM rentals r
         JOIN properties p ON r.property_id = p.id
         LEFT JOIN property_images pi ON p.id = pi.property_id AND pi.is_main = 1
-        WHERE r.tenant_id = :tenant_id AND r.status = 'active'
-        LIMIT 1";
+        WHERE r.tenant_id = :tenant_id AND r.status = 'active'";
 
 $stmt = $conn->prepare($sql);
 $stmt->execute([':tenant_id' => $user_id]);
-$active_rental = $stmt->fetch(PDO::FETCH_ASSOC);
+$active_rentals = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Use the first rental for main stats if available
+$active_rental = count($active_rentals) > 0 ? $active_rentals[0] : null;
+
+// Calculate "Next Due Date" for Dashboard Summary (earliest due date among all properties)
+$next_due_dates = [];
+foreach ($active_rentals as $key => $r) {
+    // Get last approved payment
+    $sql_last_paid = "SELECT month_year FROM rent_payments 
+                      WHERE rental_id = :rid AND status = 'approved' 
+                      ORDER BY created_at DESC LIMIT 1";
+    $stmt_last = $conn->prepare($sql_last_paid);
+    $stmt_last->execute([':rid' => $r['id']]);
+    $last_paid = $stmt_last->fetch(PDO::FETCH_ASSOC);
+
+        $start_date = new DateTime($r['start_date']);
+        $start_day = (int)$start_date->format('d');
+
+        if ($last_paid) {
+            $last_paid_date = DateTime::createFromFormat('!F Y', $last_paid['month_year']);
+            if ($last_paid_date) {
+                $next_due = clone $last_paid_date;
+                $next_due->modify('+1 month');
+                
+                // Adjust day to match start date, handling month end overflows
+                $days_in_month = (int)$next_due->format('t');
+                $target_day = min($start_day, $days_in_month);
+                $next_due->setDate((int)$next_due->format('Y'), (int)$next_due->format('m'), $target_day);
+                
+                $active_rentals[$key]['next_due_date'] = $next_due->format('M d, Y');
+                $next_due_dates[] = $next_due->getTimestamp();
+            } else {
+                 $active_rentals[$key]['next_due_date'] = date('M d, Y', strtotime('+1 month'));
+                 $next_due_dates[] = strtotime('+1 month');
+            }
+        } else {
+            // No payments yet, due date is start date
+            $active_rentals[$key]['next_due_date'] = $start_date->format('M d, Y');
+            $next_due_dates[] = $start_date->getTimestamp();
+        }
+}
+
+// Determine the earliest "Next Due Date" for the dashboard summary
+$dashboard_due_date = '--';
+if (!empty($next_due_dates)) {
+    sort($next_due_dates);
+    $dashboard_due_date = date('M 01, Y', $next_due_dates[0]);
+}
 
 // Fetch Last Payment
 $sql_last_pay = "SELECT amount, created_at FROM rent_payments WHERE tenant_id = :tenant_id ORDER BY created_at DESC LIMIT 1";
@@ -36,7 +83,7 @@ $stmt_payments->execute([':tenant_id' => $user_id]);
 $recent_payments = $stmt_payments->fetchAll(PDO::FETCH_ASSOC);
 
 // Calculate Next Due Date (Simple: 1st of next month)
-$next_due_date = date('M 01, Y', strtotime('+1 month'));
+// $next_due_date = date('M 01, Y', strtotime('+1 month')); // Replaced by dynamic calculation above
 ?>
 
 <div class="container-fluid py-4">
@@ -56,9 +103,15 @@ $next_due_date = date('M 01, Y', strtotime('+1 month'));
                 </div>
                 <div class="stats-info">
                     <h6>Current Rental</h6>
-                    <?php if($active_rental): ?>
-                        <h5 class="text-truncate mb-0" style="max-width: 150px;"><?php echo htmlspecialchars($active_rental['title']); ?></h5>
-                        <small class="text-muted"><?php echo htmlspecialchars($active_rental['location']); ?></small>
+                    <?php if(count($active_rentals) > 0): ?>
+                        <div class="d-flex flex-column gap-2">
+                        <?php foreach($active_rentals as $rental): ?>
+                            <div>
+                                <h5 class="text-truncate mb-0" style="max-width: 150px;"><?php echo htmlspecialchars($rental['title']); ?></h5>
+                                <small class="text-muted"><?php echo htmlspecialchars($rental['location']); ?></small>
+                            </div>
+                        <?php endforeach; ?>
+                        </div>
                     <?php else: ?>
                         <h3>None</h3>
                     <?php endif; ?>
@@ -72,7 +125,14 @@ $next_due_date = date('M 01, Y', strtotime('+1 month'));
                 </div>
                 <div class="stats-info">
                     <h6>Next Due Date</h6>
-                    <h3><?php echo $active_rental ? $next_due_date : '--'; ?></h3>
+                    <?php if(count($active_rentals) > 0): ?>
+                        <h3 class="text-<?php echo $dashboard_status_color; ?>"><?php echo $dashboard_due_date; ?></h3>
+                        <?php if(count($active_rentals) > 1): ?>
+                        <small class="text-muted">Earliest due date across properties</small>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <h3>--</h3>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -84,7 +144,7 @@ $next_due_date = date('M 01, Y', strtotime('+1 month'));
                 <div class="stats-info">
                     <h6>Last Payment</h6>
                     <?php if($last_payment): ?>
-                        <h3><?php echo $active_rental['currency'] . ' ' . number_format($last_payment['amount']); ?></h3>
+                        <h3><?php echo ($active_rentals[0]['currency'] ?? 'ZMW') . ' ' . number_format($last_payment['amount']); ?></h3>
                         <small class="text-muted"><?php echo date('M d', strtotime($last_payment['created_at'])); ?></small>
                     <?php else: ?>
                         <h3>--</h3>
@@ -94,27 +154,29 @@ $next_due_date = date('M 01, Y', strtotime('+1 month'));
         </div>
     </div>
 
-    <?php if($active_rental): ?>
+    <?php if(count($active_rentals) > 0): ?>
     <!-- Reference ID Banner -->
+    <?php foreach($active_rentals as $rental): ?>
     <div class="alert alert-light border shadow-sm mb-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
         <div class="d-flex align-items-center">
             <div class="bg-primary-subtle text-primary rounded-circle p-3 me-3">
                 <i class="bi bi-bank2 fs-4"></i>
             </div>
             <div>
-                <h6 class="fw-bold mb-1 text-dark">Payment Reference ID</h6>
+                <h6 class="fw-bold mb-1 text-dark">Payment Reference ID (<?php echo htmlspecialchars($rental['title']); ?>)</h6>
                 <p class="text-muted small mb-0">Use this 16-digit ID for all bank deposit narrations/references.</p>
             </div>
         </div>
         <div class="d-flex align-items-center bg-white border rounded-3 px-3 py-2">
             <span class="fs-5 fw-bold font-monospace text-primary me-3 tracking-wide">
-                <?php echo chunk_split($active_rental['payment_reference'] ?? 'PENDING', 4, ' '); ?>
+                <?php echo chunk_split($rental['payment_reference'] ?? 'PENDING', 4, ' '); ?>
             </span>
-            <button class="btn btn-link btn-sm p-0 text-muted" onclick="navigator.clipboard.writeText('<?php echo $active_rental['payment_reference'] ?? ''; ?>')" title="Copy ID">
+            <button class="btn btn-link btn-sm p-0 text-muted" onclick="navigator.clipboard.writeText('<?php echo $rental['payment_reference'] ?? ''; ?>')" title="Copy ID">
                 <i class="bi bi-copy fs-5"></i>
             </button>
         </div>
     </div>
+    <?php endforeach; ?>
     <?php else: ?>
     <div class="alert alert-info border-0 shadow-sm d-flex align-items-center" role="alert">
         <i class="bi bi-info-circle-fill fs-4 me-3 text-info"></i>
