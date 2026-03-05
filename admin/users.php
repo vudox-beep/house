@@ -1,6 +1,7 @@
 <?php
 require_once '../config/config.php';
 require_once '../models/User.php';
+require_once '../includes/ActivityLogger.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -15,6 +16,8 @@ try {
     $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+    $logger = new ActivityLogger();
+
     // Handle User Actions
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $userObj = new User();
@@ -27,6 +30,7 @@ try {
 
             if ($userObj->updateSubscription($user_id, $status, $expiry)) {
                 $success_msg = "Subscription updated successfully.";
+                $logger->log($_SESSION['user_id'], 'admin', 'update_subscription', "Updated subscription for user ID: $user_id. Status: $status, Expiry: $expiry");
             } else {
                 $error_msg = "Failed to update subscription.";
             }
@@ -38,6 +42,7 @@ try {
             } else {
                 if ($userObj->delete($user_id)) {
                     $success_msg = "User deleted successfully.";
+                    $logger->log($_SESSION['user_id'], 'admin', 'delete_user', "Deleted user ID: $user_id");
                 } else {
                     $error_msg = "Failed to delete user.";
                 }
@@ -51,6 +56,8 @@ try {
             } else {
                 if ($userObj->toggleBan($user_id, $status)) {
                     $success_msg = "User status updated successfully.";
+                    $action_type = $status == 1 ? 'ban_user' : 'unban_user';
+                    $logger->log($_SESSION['user_id'], 'admin', $action_type, "Changed ban status for user ID: $user_id to $status");
                 } else {
                     $error_msg = "Failed to update user status.";
                 }
@@ -60,7 +67,12 @@ try {
 
     // Filter by role
     $role_filter = $_GET['role'] ?? '';
-    $query = "SELECT u.*, d.subscription_status, d.subscription_expiry 
+    $query = "SELECT u.*, 
+                     d.subscription_status, 
+                     d.subscription_expiry,
+                     d.company_name,
+                     d.office_address,
+                     d.bio
               FROM users u 
               LEFT JOIN dealers d ON u.id = d.user_id 
               WHERE 1=1";
@@ -296,6 +308,77 @@ try {
         </div>
     </div>
 
+    <!-- User Details Modal -->
+    <div class="modal fade" id="userDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">User Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center mb-3">
+                            <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 100px; height: 100px;">
+                                <i class="bi bi-person fs-1 text-muted" id="detail_icon"></i>
+                                <img src="" id="detail_img" class="rounded-circle w-100 h-100 object-fit-cover d-none">
+                            </div>
+                            <h5 id="detail_name" class="fw-bold mb-1"></h5>
+                            <span id="detail_role" class="badge bg-secondary"></span>
+                        </div>
+                        <div class="col-md-8">
+                            <h6 class="text-uppercase text-muted small fw-bold mb-3 border-bottom pb-2">Account Information</h6>
+                            <div class="row g-3">
+                                <div class="col-sm-6">
+                                    <label class="small text-muted d-block">Email</label>
+                                    <span id="detail_email" class="fw-medium"></span>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="small text-muted d-block">Phone</label>
+                                    <span id="detail_phone" class="fw-medium"></span>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="small text-muted d-block">Status</label>
+                                    <span id="detail_status"></span>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="small text-muted d-block">Joined Date</label>
+                                    <span id="detail_joined" class="fw-medium"></span>
+                                </div>
+                            </div>
+
+                            <!-- Dealer Specific Info -->
+                            <div id="dealer_info_section" class="d-none mt-4">
+                                <h6 class="text-uppercase text-muted small fw-bold mb-3 border-bottom pb-2">Dealer Profile</h6>
+                                <div class="row g-3">
+                                    <div class="col-sm-6">
+                                        <label class="small text-muted d-block">Company Name</label>
+                                        <span id="detail_company" class="fw-medium"></span>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label class="small text-muted d-block">Office Address</label>
+                                        <span id="detail_address" class="fw-medium"></span>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="small text-muted d-block">Subscription</label>
+                                        <span id="detail_subscription"></span>
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="small text-muted d-block">Bio</label>
+                                        <p id="detail_bio" class="text-muted small bg-light p-2 rounded mt-1"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Delete Confirmation Form -->
     <form id="deleteForm" method="POST" style="display: none;">
         <input type="hidden" name="action" value="delete_user">
@@ -311,6 +394,66 @@ try {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+    function viewUser(user) {
+        // Basic Info
+        document.getElementById('detail_name').innerText = user.name;
+        document.getElementById('detail_email').innerText = user.email;
+        document.getElementById('detail_phone').innerText = user.phone || 'N/A';
+        document.getElementById('detail_joined').innerText = new Date(user.created_at).toLocaleDateString();
+        
+        // Role Badge
+        const roleBadge = document.getElementById('detail_role');
+        roleBadge.className = 'badge';
+        if (user.role === 'admin') roleBadge.classList.add('bg-danger');
+        else if (user.role === 'dealer') roleBadge.classList.add('bg-primary');
+        else roleBadge.classList.add('bg-secondary');
+        roleBadge.innerText = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+
+        // Status
+        const statusSpan = document.getElementById('detail_status');
+        let statusHtml = '';
+        if (user.is_verified) statusHtml += '<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill me-1">Verified</span>';
+        else statusHtml += '<span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill me-1">Unverified</span>';
+        
+        if (user.is_banned == 1) statusHtml += '<span class="badge bg-danger">Banned</span>';
+        else statusHtml += '<span class="badge bg-success">Active</span>';
+        statusSpan.innerHTML = statusHtml;
+
+        // Profile Image
+        const icon = document.getElementById('detail_icon');
+        const img = document.getElementById('detail_img');
+        if (user.profile_image) {
+            img.src = '../' + user.profile_image;
+            img.classList.remove('d-none');
+            icon.classList.add('d-none');
+        } else {
+            img.classList.add('d-none');
+            icon.classList.remove('d-none');
+        }
+
+        // Dealer Specifics
+        const dealerSection = document.getElementById('dealer_info_section');
+        if (user.role === 'dealer') {
+            dealerSection.classList.remove('d-none');
+            document.getElementById('detail_company').innerText = user.company_name || 'N/A';
+            document.getElementById('detail_address').innerText = user.office_address || 'N/A';
+            document.getElementById('detail_bio').innerText = user.bio || 'No bio available.';
+            
+            let subText = '';
+            if (user.subscription_status === 'active') {
+                subText = '<span class="text-success fw-bold">Active</span>';
+                if (user.subscription_expiry) subText += ' (Expires: ' + new Date(user.subscription_expiry).toLocaleDateString() + ')';
+            } else {
+                subText = '<span class="text-secondary">Inactive</span>';
+            }
+            document.getElementById('detail_subscription').innerHTML = subText;
+        } else {
+            dealerSection.classList.add('d-none');
+        }
+
+        new bootstrap.Modal(document.getElementById('userDetailsModal')).show();
+    }
+
     function manageSubscription(id, status, expiry) {
         document.getElementById('sub_user_id').value = id;
         document.getElementById('sub_status').value = status;

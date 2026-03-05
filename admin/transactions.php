@@ -103,7 +103,7 @@ try {
                 <div class="card border-0 shadow-sm rounded-3">
                     <div class="card-header bg-white border-0 py-3 d-flex justify-content-between">
                          <h5 class="fw-bold mb-0">Lenco Collections (Live)</h5>
-                         <span class="badge bg-primary">Page <?php echo $_GET['page'] ?? 1; ?></span>
+                         <span class="badge bg-primary">Page <?php echo htmlspecialchars($_GET['page'] ?? 1); ?></span>
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
@@ -170,7 +170,7 @@ try {
                         </div>
                     </div>
                     <div class="card-footer bg-white border-0 py-3">
-                        <?php $page = $_GET['page'] ?? 1; ?>
+                        <?php $page = isset($_GET['page']) ? (int)$_GET['page'] : 1; ?>
                         <div class="d-flex justify-content-between">
                             <?php if($page > 1): ?>
                                 <a href="transactions.php?view=lenco&page=<?php echo $page - 1; ?>" class="btn btn-sm btn-outline-secondary">Previous</a>

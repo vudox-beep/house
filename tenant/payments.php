@@ -28,13 +28,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['upload_payment'])) {
         $year = $_POST['year'];
         $amount = $_POST['amount'];
         $payment_method = $_POST['payment_method']; // 'cash', 'bank_transfer', 'mobile_money'
+        $months_paid = isset($_POST['months_paid']) ? (int)$_POST['months_paid'] : 1;
         $month_year = $month . ' ' . $year;
         
         // Handle File Upload (Optional if Cash)
         if ($payment_method == 'cash') {
              // Insert into DB without file
-            $sql_insert = "INSERT INTO rent_payments (rental_id, tenant_id, month_year, amount, currency, proof_file, payment_method, status) 
-                           VALUES (:rid, :tid, :my, :amt, :curr, NULL, :method, 'pending')";
+            $sql_insert = "INSERT INTO rent_payments (rental_id, tenant_id, month_year, amount, currency, proof_file, payment_method, status, months_paid) 
+                           VALUES (:rid, :tid, :my, :amt, :curr, NULL, :method, 'pending', :months)";
             $stmt_insert = $conn->prepare($sql_insert);
             $stmt_insert->execute([
                 ':rid' => $active_rental['id'],
@@ -42,7 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['upload_payment'])) {
                 ':my' => $month_year,
                 ':amt' => $amount,
                 ':curr' => $active_rental['currency'],
-                ':method' => $payment_method
+                ':method' => $payment_method,
+                ':months' => $months_paid
             ]);
             $success = "Cash payment recorded! Waiting for landlord approval.";
         } elseif (isset($_FILES['proof']) && $_FILES['proof']['error'] == 0) {
@@ -64,8 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['upload_payment'])) {
                 
                 if (move_uploaded_file($_FILES['proof']['tmp_name'], $upload_dir . $new_filename)) {
                     // Insert into DB
-                    $sql_insert = "INSERT INTO rent_payments (rental_id, tenant_id, month_year, amount, currency, proof_file, payment_method, status) 
-                                   VALUES (:rid, :tid, :my, :amt, :curr, :proof, :method, 'pending')";
+                    $sql_insert = "INSERT INTO rent_payments (rental_id, tenant_id, month_year, amount, currency, proof_file, payment_method, status, months_paid) 
+                                   VALUES (:rid, :tid, :my, :amt, :curr, :proof, :method, 'pending', :months)";
                     $stmt_insert = $conn->prepare($sql_insert);
                     $stmt_insert->execute([
                         ':rid' => $active_rental['id'],
@@ -74,7 +76,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['upload_payment'])) {
                         ':amt' => $amount,
                         ':curr' => $active_rental['currency'],
                         ':proof' => 'uploads/payments/' . $new_filename,
-                        ':method' => $payment_method
+                        ':method' => $payment_method,
+                        ':months' => $months_paid
                     ]);
                     
                     $success = "Payment proof uploaded successfully! Waiting for landlord approval.";
@@ -125,7 +128,7 @@ $payments = $stmt_history->fetchAll(PDO::FETCH_ASSOC);
                 <table class="table table-hover align-middle mb-0">
                     <thead class="bg-light text-muted small text-uppercase">
                         <tr>
-                            <th class="ps-4">Month</th>
+                            <th class="ps-4">For Month</th>
                             <th>Amount</th>
                             <th>Method</th>
                             <th>Status</th>
@@ -139,7 +142,12 @@ $payments = $stmt_history->fetchAll(PDO::FETCH_ASSOC);
                             <?php foreach ($payments as $pay): ?>
                                 <tr>
                                     <td class="ps-4 fw-bold"><?php echo htmlspecialchars($pay['month_year']); ?></td>
-                                    <td class="text-primary fw-bold"><?php echo $pay['currency'] . ' ' . number_format($pay['amount']); ?></td>
+                                    <td class="text-primary fw-bold">
+                                        <?php echo $pay['currency'] . ' ' . number_format($pay['amount']); ?>
+                                        <?php if(isset($pay['months_paid']) && $pay['months_paid'] > 1): ?>
+                                            <span class="badge bg-info-subtle text-info-emphasis ms-1 rounded-pill" style="font-size: 0.65rem;"><?php echo $pay['months_paid']; ?> Mos</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <span class="badge bg-secondary-subtle text-secondary rounded-pill">
                                             <?php echo ucwords(str_replace('_', ' ', $pay['payment_method'] ?? 'bank_transfer')); ?>
@@ -224,8 +232,10 @@ $payments = $stmt_history->fetchAll(PDO::FETCH_ASSOC);
                             <select class="form-select" name="year" required>
                                 <?php 
                                 $currentYear = date('Y');
-                                for($i = $currentYear; $i >= $currentYear - 1; $i--) {
-                                    echo "<option value='$i'>$i</option>";
+                                // Allow paying for next year too
+                                for($i = $currentYear; $i <= $currentYear + 1; $i++) {
+                                    $selected = ($i == $currentYear) ? 'selected' : '';
+                                    echo "<option value='$i' $selected>$i</option>";
                                 }
                                 ?>
                             </select>
@@ -233,8 +243,21 @@ $payments = $stmt_history->fetchAll(PDO::FETCH_ASSOC);
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label small fw-bold">Amount Paid</label>
-                        <input type="number" step="0.01" class="form-control" name="amount" value="<?php echo $active_rental ? $active_rental['rent_amount'] : ''; ?>" required>
+                        <label class="form-label small fw-bold">Number of Months Paid</label>
+                        <select class="form-select" name="months_paid" id="monthsPaid" onchange="updateTotalAmount()">
+                            <option value="1">1 Month</option>
+                            <option value="2">2 Months</option>
+                            <option value="3">3 Months</option>
+                            <option value="4">4 Months</option>
+                            <option value="5">5 Months</option>
+                            <option value="6">6 Months</option>
+                            <option value="12">1 Year</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Total Amount Paid</label>
+                        <input type="number" step="0.01" class="form-control" name="amount" id="amountInput" value="<?php echo $active_rental ? $active_rental['rent_amount'] : ''; ?>" required>
                     </div>
 
                     <div class="mb-3">
@@ -274,6 +297,14 @@ function toggleProofUpload() {
         proofField.style.display = 'block';
         proofInput.setAttribute('required', 'required');
     }
+}
+
+function updateTotalAmount() {
+    const months = parseInt(document.getElementById('monthsPaid').value) || 1;
+    const rentAmount = <?php echo $active_rental ? $active_rental['rent_amount'] : 0; ?>;
+    const total = rentAmount * months;
+    
+    document.getElementById('amountInput').value = total.toFixed(2);
 }
 </script>
 

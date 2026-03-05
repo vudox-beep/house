@@ -126,7 +126,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             'status' => 'available',
             'is_featured' => $is_featured,
             'amenities' => htmlspecialchars($_POST['amenities']),
-            'video_url' => htmlspecialchars($_POST['video_url'])
+            'video_url' => htmlspecialchars($_POST['video_url']),
+            'capacity' => !empty($_POST['capacity']) ? intval($_POST['capacity']) : null,
+            'people_per_room' => !empty($_POST['people_per_room']) ? intval($_POST['people_per_room']) : null,
+            'event_type' => !empty($_POST['event_type']) ? htmlspecialchars($_POST['event_type']) : null,
+            'catering_available' => isset($_POST['catering_available']) ? 1 : 0,
+            'equipment_available' => isset($_POST['equipment_available']) ? 1 : 0
         ];
 
         $property_id = $property->create($data);
@@ -180,6 +185,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     <option value="boarding_house">Boarding House</option>
                                     <option value="land">Land</option>
                                     <option value="commercial">Commercial</option>
+                                    <option value="wedding_venue">Wedding Venue</option>
+                                    <option value="restaurant">Restaurant</option>
+                                    <option value="lodge">Lodge</option>
+                                    <option value="studio">Studio</option>
+                                    <option value="cottage">Cottage</option>
+                                    <option value="manor">Manor</option>
                                 </select>
                             </div>
                             <div class="col-md-2 mb-3">
@@ -187,6 +198,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <select class="form-select" id="listing_purpose" name="listing_purpose" required>
                                     <option value="rent">For Rent</option>
                                     <option value="sale">For Sale</option>
+                                    <option value="booking">For Booking</option>
+                                    <option value="service">Service</option>
                                 </select>
                             </div>
                         </div>
@@ -197,21 +210,52 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </div>
 
                         <div class="row">
-                            <div class="col-md-3 mb-3">
+                            <!-- Standard Fields (House, Apartment, Flat, Cottage, Manor) -->
+                            <div class="col-md-3 mb-3 field-group group-standard">
                                 <label for="bedrooms" class="form-label fw-bold">Bedrooms</label>
                                 <input type="number" class="form-control" id="bedrooms" name="bedrooms">
                             </div>
-                            <div class="col-md-3 mb-3">
+                            <div class="col-md-3 mb-3 field-group group-standard">
                                 <label for="bathrooms" class="form-label fw-bold">Bathrooms</label>
                                 <input type="number" class="form-control" id="bathrooms" name="bathrooms">
                             </div>
-                            <div class="col-md-3 mb-3">
+                            
+                            <!-- Boarding House Fields -->
+                            <div class="col-md-3 mb-3 field-group group-boarding" style="display:none;">
+                                <label for="people_per_room" class="form-label fw-bold">People per Room</label>
+                                <input type="number" class="form-control" id="people_per_room" name="people_per_room">
+                            </div>
+
+                            <!-- Venue / Restaurant / Lodge Fields -->
+                            <div class="col-md-3 mb-3 field-group group-venue" style="display:none;">
+                                <label for="capacity" class="form-label fw-bold">Capacity (People)</label>
+                                <input type="number" class="form-control" id="capacity" name="capacity">
+                            </div>
+                            <div class="col-md-3 mb-3 field-group group-venue" style="display:none;">
+                                <label for="event_type" class="form-label fw-bold">Event Type Suitability</label>
+                                <input type="text" class="form-control" id="event_type" name="event_type" placeholder="e.g. Weddings, Conferences">
+                            </div>
+                            
+                            <!-- Common Room Count -->
+                            <div class="col-md-3 mb-3 field-group group-common">
                                 <label for="rooms" class="form-label fw-bold">Total Rooms</label>
                                 <input type="number" class="form-control" id="rooms" name="rooms">
                             </div>
                             <div class="col-md-3 mb-3">
                                 <label for="size_sqm" class="form-label fw-bold">Size (sqm)</label>
                                 <input type="number" step="0.01" class="form-control" id="size_sqm" name="size_sqm">
+                            </div>
+                        </div>
+
+                        <!-- Amenities Checkboxes for Special Categories -->
+                        <div class="mb-3 field-group group-venue" style="display:none;">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="catering_available" name="catering_available" value="1">
+                                <label class="form-check-label" for="catering_available">Catering Available</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="equipment_available" name="equipment_available" value="1">
+                                <label class="form-check-label" for="equipment_available">Equipment Available (Tables, Chairs, etc.)</label>
                             </div>
                         </div>
 
@@ -266,41 +310,152 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<!-- Google Maps JS -->
-<script src="https://maps.googleapis.com/maps/api/js?key=<?php echo GOOGLE_MAPS_API_KEY; ?>&callback=initMap" async defer></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
 <script>
     let map;
     let marker;
+    const locationInput = document.getElementById('location');
+    const cityInput = document.getElementById('city');
+    const countryInput = document.getElementById('country');
+
+    document.addEventListener('DOMContentLoaded', function() {
+        initMap();
+        
+        // Dynamic Field Logic
+        const typeSelect = document.getElementById('property_type');
+        if(typeSelect) {
+            typeSelect.addEventListener('change', updateFields);
+            updateFields(); // Initial call
+        }
+
+        // Add input listeners for geocoding
+        let timeout = null;
+        const inputs = [locationInput, cityInput, countryInput];
+        
+        inputs.forEach(input => {
+            if(input) {
+                input.addEventListener('input', function() {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(searchLocation, 1000); // Debounce 1s
+                });
+            }
+        });
+    });
 
     function initMap() {
-        // Default to Lusaka
-        const defaultLocation = { lat: -15.3875, lng: 28.3228 };
+        // Default to Lusaka, Zambia
+        const defaultLat = -15.4167;
+        const defaultLng = 28.2833;
         
-        map = new google.maps.Map(document.getElementById("map"), {
-            zoom: 12,
-            center: defaultLocation,
-        });
+        map = L.map('map').setView([defaultLat, defaultLng], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        }).addTo(map);
 
         // Add click listener
-        map.addListener("click", (e) => {
-            placeMarkerAndPanTo(e.latLng);
+        map.on('click', function(e) {
+            placeMarker(e.latlng.lat, e.latlng.lng);
         });
-    }
-
-    function placeMarkerAndPanTo(latLng) {
-        if (marker) {
-            marker.setPosition(latLng);
-        } else {
-            marker = new google.maps.Marker({
-                position: latLng,
-                map: map,
+        
+        // Try to get user's current location to center map
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                map.setView([lat, lng], 15);
+                // Optional: Don't place marker automatically, let user click or search
+                // placeMarker(lat, lng); 
             });
         }
-        map.panTo(latLng);
+    }
+
+    function placeMarker(lat, lng) {
+        if (marker) {
+            marker.setLatLng([lat, lng]);
+        } else {
+            marker = L.marker([lat, lng]).addTo(map);
+        }
         
         // Update hidden inputs
-        document.getElementById('latitude').value = latLng.lat();
-        document.getElementById('longitude').value = latLng.lng();
+        document.getElementById('latitude').value = lat;
+        document.getElementById('longitude').value = lng;
+    }
+
+    function searchLocation() {
+        const address = locationInput.value;
+        const city = cityInput.value;
+        const country = countryInput.value;
+        
+        if(!address && !city) return;
+
+        let query = address;
+        if(city) query += ', ' + city;
+        if(country) query += ', ' + country;
+
+        // Use Nominatim API for geocoding with detailed address breakdown
+        const params = new URLSearchParams({
+            format: 'json',
+            limit: 1,
+            addressdetails: 1
+        });
+        
+        // Construct query more specifically
+        let q = '';
+        if(address) q += address + ', ';
+        if(city) q += city + ', ';
+        if(country) q += country;
+        
+        params.append('q', q);
+
+        fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.length > 0) {
+                    const lat = parseFloat(data[0].lat);
+                    const lon = parseFloat(data[0].lon);
+                    
+                    // Update map
+                    map.setView([lat, lon], 18); // Higher zoom for "exact" location
+                    placeMarker(lat, lon);
+                }
+            })
+            .catch(err => console.error('Geocoding error:', err));
+    }
+
+    function updateFields() {
+        const typeSelect = document.getElementById('property_type');
+        if(!typeSelect) return;
+        
+        const type = typeSelect.value;
+        const standardGroups = document.querySelectorAll('.group-standard');
+        const boardingGroups = document.querySelectorAll('.group-boarding');
+        const venueGroups = document.querySelectorAll('.group-venue');
+        const commonGroups = document.querySelectorAll('.group-common');
+
+        // Hide all first
+        standardGroups.forEach(el => el.style.display = 'none');
+        boardingGroups.forEach(el => el.style.display = 'none');
+        venueGroups.forEach(el => el.style.display = 'none');
+        commonGroups.forEach(el => el.style.display = 'none');
+
+        if (['house', 'apartment', 'flat', 'cottage', 'manor'].includes(type)) {
+            standardGroups.forEach(el => el.style.display = 'block');
+            commonGroups.forEach(el => el.style.display = 'block');
+        } else if (type === 'boarding_house') {
+            standardGroups.forEach(el => el.style.display = 'block'); 
+            boardingGroups.forEach(el => el.style.display = 'block');
+            commonGroups.forEach(el => el.style.display = 'block');
+        } else if (type === 'lodge') {
+            standardGroups.forEach(el => el.style.display = 'block');
+            venueGroups.forEach(el => el.style.display = 'block');
+            commonGroups.forEach(el => el.style.display = 'block');
+        } else if (['wedding_venue', 'restaurant', 'commercial', 'studio'].includes(type)) {
+            venueGroups.forEach(el => el.style.display = 'block');
+        }
     }
 </script>
 </body>

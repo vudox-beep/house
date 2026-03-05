@@ -1,6 +1,7 @@
 <?php
 require_once 'config/config.php';
 require_once 'models/Property.php';
+require_once 'models/Favorite.php';
 require_once 'models/Lead.php';
 require_once 'includes/SimpleMailer.php';
 
@@ -36,6 +37,12 @@ $propertyModel = new Property();
 $propertyModel->incrementViews($property_id); // Increment views
 $property = $propertyModel->getById($property_id);
 $images = $propertyModel->getImages($property_id);
+
+$is_saved = false;
+if (isset($_SESSION['user_id'])) {
+    $favoriteModel = new Favorite();
+    $is_saved = $favoriteModel->isSaved($_SESSION['user_id'], $property_id);
+}
 
 if (!$property) {
     echo "Property not found.";
@@ -170,6 +177,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                             <li class="nav-item"><a class="nav-link text-muted" href="dealer/dashboard.php">Dashboard</a></li>
                         <?php elseif($_SESSION['user_role'] == 'admin'): ?>
                             <li class="nav-item"><a class="nav-link text-muted" href="admin/dashboard.php">Admin Panel</a></li>
+                        <?php elseif($_SESSION['user_role'] == 'user'): ?>
+                            <li class="nav-item"><a class="nav-link text-muted" href="tenant/dashboard.php">Dashboard</a></li>
                         <?php endif; ?>
                         <li class="nav-item dropdown ms-2">
                             <a class="nav-link dropdown-toggle text-dark" href="#" role="button" data-bs-toggle="dropdown">
@@ -216,28 +225,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
             <div>
                 <div class="d-flex align-items-center gap-2 mb-2">
                     <span class="badge bg-warning text-dark fw-bold text-uppercase px-3 py-2 rounded-pill shadow-sm">
-                        <?php echo ($property['listing_purpose'] ?? 'rent') == 'sale' ? 'For Sale' : 'For Rent'; ?>
+                        <?php 
+                            $purpose = $property['listing_purpose'] ?? 'rent';
+                            if ($purpose == 'booking') echo 'For Booking';
+                            elseif ($purpose == 'service') echo 'Service';
+                            elseif ($purpose == 'sale') echo 'For Sale';
+                            else echo 'For Rent';
+                        ?>
                     </span>
                     <span class="badge bg-light text-dark border fw-medium px-3 py-2 rounded-pill">
-                        <?php echo ucfirst($property['property_type']); ?>
+                        <?php echo ucfirst(str_replace('_', ' ', $property['property_type'])); ?>
                     </span>
                 </div>
                 <h1 class="fw-bold mb-1"><?php echo htmlspecialchars($property['title']); ?></h1>
                 <p class="text-muted mb-0"><i class="bi bi-geo-alt"></i> <?php echo htmlspecialchars($property['location']); ?></p>
             </div>
             <div class="text-end">
-                <h2 class="text-primary fw-bold mb-0"><?php echo $property['currency'] . ' ' . number_format($property['price']); ?></h2>
-                <small class="text-muted"><?php echo ($property['listing_purpose'] ?? 'rent') == 'sale' ? 'Full Price' : '/ month'; ?></small>
+                <h2 class="text-primary fw-bold mb-0">
+                    <?php 
+                        if ($property['property_type'] == 'restaurant') {
+                            echo 'Service Price: ';
+                        } elseif (in_array($property['property_type'], ['wedding_venue', 'commercial', 'studio'])) {
+                            echo 'Booking Price: ';
+                        }
+                        echo $property['currency'] . ' ' . number_format($property['price']); 
+                    ?>
+                </h2>
+                <small class="text-muted">
+                    <?php 
+                        if (($property['listing_purpose'] ?? 'rent') == 'sale') {
+                            echo 'Full Price';
+                        } else {
+                            if ($property['property_type'] == 'boarding_house') {
+                                echo '/ person';
+                            } elseif ($property['property_type'] == 'lodge') {
+                                echo '/ night';
+                            } elseif (in_array($property['property_type'], ['wedding_venue', 'restaurant', 'commercial', 'studio'])) {
+                                echo ''; // Suffix already handled in prefix
+                            } else {
+                                echo '/ month';
+                            }
+                        }
+                    ?>
+                </small>
             </div>
         </div>
 
         <!-- Image Gallery (Grid + Slider Support) -->
-        <div class="gallery-grid">
+        <div class="gallery-grid position-relative">
             <?php 
                 $count = count($images);
                 // Main Image
                 $img1 = ($count > 0) ? $images[0]['image_path'] : 'assets/images/placeholder.jpg';
-                echo '<div class="gallery-item gallery-main"><a href="' . $img1 . '" class="glightbox" data-gallery="property-gallery"><img src="' . $img1 . '" class="gallery-img"></a></div>';
+                
+                // Favorite Button Overlay
+                $btnHtml = '';
+                if(isset($_SESSION['user_id'])) {
+                     $btnHtml = '<button class="btn btn-light rounded-circle shadow position-absolute top-0 end-0 m-3 favorite-btn" style="z-index: 20; width: 40px; height: 40px; padding: 0;" onclick="toggleFavorite(' . $property['id'] . '); event.preventDefault();"><i class="bi ' . ($is_saved ? 'bi-heart-fill text-danger' : 'bi-heart') . '" style="font-size: 1.2rem; line-height: 40px;"></i></button>';
+                } else {
+                     $btnHtml = '<a href="login.php" class="btn btn-light rounded-circle shadow position-absolute top-0 end-0 m-3" style="z-index: 20; width: 40px; height: 40px; padding: 0; display: flex; align-items: center; justify-content: center;"><i class="bi bi-heart" style="font-size: 1.2rem;"></i></a>';
+                }
+
+                echo '<div class="gallery-item gallery-main position-relative">';
+                echo $btnHtml;
+                echo '<a href="' . $img1 . '" class="glightbox" data-gallery="property-gallery"><img src="' . $img1 . '" class="gallery-img"></a>';
+                echo '</div>';
 
                 // Sub Images
                 if ($count > 1) {
@@ -279,23 +331,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                 
                 <!-- Key Features -->
                 <div class="d-flex justify-content-between border-bottom pb-4 mb-4 text-center">
+                    <?php if(in_array($property['property_type'], ['house', 'apartment', 'flat', 'cottage', 'manor', 'lodge', 'bedsitter'])): ?>
                     <div>
                         <span class="d-block text-muted small">Bedrooms</span>
-                        <span class="fw-bold fs-5"><i class="bi bi-people"></i> <?php echo $property['bedrooms']; ?></span>
+                        <span class="fw-bold fs-5"><i class="bi bi-bed"></i> <?php echo $property['bedrooms']; ?></span>
                     </div>
                     <div>
                         <span class="d-block text-muted small">Bathrooms</span>
                         <span class="fw-bold fs-5"><i class="bi bi-droplet"></i> <?php echo $property['bathrooms']; ?></span>
                     </div>
+                    <?php endif; ?>
+
+                    <?php if($property['property_type'] == 'boarding_house'): ?>
+                    <div>
+                        <span class="d-block text-muted small">Per Room</span>
+                        <span class="fw-bold fs-5"><i class="bi bi-people"></i> <?php echo $property['people_per_room'] ?? 1; ?> People</span>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php if(in_array($property['property_type'], ['wedding_venue', 'restaurant', 'commercial', 'studio'])): ?>
+                    <div>
+                        <span class="d-block text-muted small">Capacity</span>
+                        <span class="fw-bold fs-5"><i class="bi bi-people-fill"></i> <?php echo $property['capacity'] ?? 'N/A'; ?></span>
+                    </div>
+                    <?php endif; ?>
+
                     <div>
                         <span class="d-block text-muted small">Area</span>
                         <span class="fw-bold fs-5"><i class="bi bi-aspect-ratio"></i> <?php echo $property['size_sqm']; ?> m²</span>
                     </div>
                     <div>
                         <span class="d-block text-muted small">Type</span>
-                        <span class="fw-bold fs-5"><?php echo ucfirst($property['property_type']); ?></span>
+                        <span class="fw-bold fs-5"><?php echo ucfirst(str_replace('_', ' ', $property['property_type'])); ?></span>
                     </div>
                 </div>
+
+                <!-- Special Details for Venues -->
+                <?php if(in_array($property['property_type'], ['wedding_venue', 'restaurant', 'commercial', 'studio'])): ?>
+                <div class="mb-5">
+                    <h4 class="fw-bold mb-3">Venue Details</h4>
+                    <div class="row g-3">
+                        <?php if(!empty($property['event_type'])): ?>
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded bg-light">
+                                <small class="text-muted d-block">Ideal For</small>
+                                <span class="fw-bold"><?php echo htmlspecialchars($property['event_type']); ?></span>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded bg-light">
+                                <small class="text-muted d-block">Services</small>
+                                <div class="d-flex gap-3 mt-1">
+                                    <?php if($property['catering_available']): ?>
+                                        <span class="badge bg-success"><i class="bi bi-check-circle"></i> Catering</span>
+                                    <?php endif; ?>
+                                    <?php if($property['equipment_available']): ?>
+                                        <span class="badge bg-primary"><i class="bi bi-check-circle"></i> Equipment</span>
+                                    <?php endif; ?>
+                                    <?php if(!$property['catering_available'] && !$property['equipment_available']): ?>
+                                        <span class="text-muted">Space Only</span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
 
                 <!-- Description -->
                 <div class="mb-5">
@@ -358,22 +461,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                     <div id="map" class="map-container"></div>
                 </div>
 
+                <!-- Rental Cost Estimator -->
+                <div class="mb-5">
+                    <div class="accordion" id="calculatorAccordion">
+                        <div class="accordion-item border-0 shadow-sm rounded-3 overflow-hidden">
+                            <h2 class="accordion-header" id="headingCalc">
+                                <button class="accordion-button collapsed fw-bold bg-white" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCalc" aria-expanded="false" aria-controls="collapseCalc">
+                                    <i class="bi bi-calculator me-2 text-primary"></i> Rental Cost Estimator
+                                </button>
+                            </h2>
+                            <div id="collapseCalc" class="accordion-collapse collapse" aria-labelledby="headingCalc" data-bs-parent="#calculatorAccordion">
+                                <div class="accordion-body bg-light">
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-bold">Monthly Rent</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text bg-white"><?php echo $property['currency']; ?></span>
+                                                <input type="number" class="form-control" id="calcRent" value="<?php echo $property['price']; ?>">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-bold">Lease Duration (Months)</label>
+                                            <input type="number" class="form-control" id="calcDuration" value="12">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-bold">Security Deposit (One-time)</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text bg-white"><?php echo $property['currency']; ?></span>
+                                                <input type="number" class="form-control" id="calcDeposit" value="<?php echo $property['price']; ?>">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-bold">Est. Utilities / Mo</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text bg-white"><?php echo $property['currency']; ?></span>
+                                                <input type="number" class="form-control" id="calcUtilities" value="0">
+                                            </div>
+                                        </div>
+                                        <div class="col-12 text-end mt-3">
+                                            <button class="btn btn-primary btn-sm px-4" onclick="calculateRentalCost()">Calculate Total</button>
+                                        </div>
+                                        <div class="col-12 mt-3" id="calcResult" style="display: none;">
+                                            <div class="alert alert-success mb-0">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <span>Total Cost (First Year):</span>
+                                                    <span class="fw-bold fs-5" id="totalCost"></span>
+                                                </div>
+                                                <div class="d-flex justify-content-between align-items-center small text-muted">
+                                                    <span>Move-in Cost (First Month + Deposit):</span>
+                                                    <span class="fw-bold" id="moveInCost"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <!-- Right Column: Agent Card -->
             <div class="col-lg-4">
                 <div class="agent-card shadow-sm bg-white">
                     <div class="d-flex align-items-center mb-4">
-                        <img src="assets/images/user-placeholder.png" class="agent-avatar" alt="Agent">
+                        <img src="assets/images/user-placeholder.png" class="agent-avatar" alt="Landlord">
                         <div>
-                            <h6 class="mb-0 fw-bold"><?php echo htmlspecialchars($property['dealer_name'] ?? 'Agent'); ?></h6>
+                            <h6 class="mb-0 fw-bold"><?php echo htmlspecialchars($property['dealer_name'] ?? 'Landlord'); ?></h6>
                             <small class="text-muted">Verified Host <i class="bi bi-patch-check-fill text-primary"></i></small>
                         </div>
                     </div>
 
                     <?php if(!empty($property['phone'])): ?>
                         <a href="tel:<?php echo $property['phone']; ?>" class="btn-contact btn-call">
-                            <i class="bi bi-telephone-fill"></i> Call Agent
+                            <i class="bi bi-telephone-fill"></i> Call Landlord
                         </a>
                     <?php endif; ?>
 
@@ -386,6 +548,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                     <button class="btn-contact btn-live-chat">
                         <i class="bi bi-chat-dots-fill"></i> Live Chat
                     </button>
+                    
+                    <?php if(isset($_SESSION['user_id'])): ?>
+                        <button class="btn-contact btn-light border mt-2 w-100 favorite-btn" onclick="toggleFavorite(<?php echo $property['id']; ?>)">
+                            <i class="bi <?php echo $is_saved ? 'bi-heart-fill' : 'bi-heart'; ?>"></i> 
+                            <span class="save-text"><?php echo $is_saved ? 'Saved' : 'Save Property'; ?></span>
+                        </button>
+                    <?php else: ?>
+                        <a href="login.php" class="btn-contact btn-light border mt-2 w-100 text-decoration-none d-block text-center">
+                            <i class="bi bi-heart"></i> Save Property
+                        </a>
+                    <?php endif; ?>
                     
                     <hr class="my-4">
                     <h6 class="fw-bold mb-3">Send an enquiry</h6>
@@ -522,6 +695,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
             loop: true,
             autoplayVideos: true
         });
+
+        function toggleFavorite(propertyId) {
+            // Optimistic UI Update for all favorite buttons
+            const btns = document.querySelectorAll('.favorite-btn');
+            let isSaved = false;
+
+            btns.forEach(btn => {
+                const icon = btn.querySelector('i');
+                const text = btn.querySelector('.save-text');
+                
+                // Determine current state from the first button found
+                if (btn === btns[0]) {
+                     isSaved = icon.classList.contains('bi-heart-fill');
+                }
+
+                if (isSaved) {
+                    icon.classList.remove('bi-heart-fill', 'text-danger');
+                    icon.classList.add('bi-heart');
+                    if(text) text.innerText = 'Save';
+                } else {
+                    icon.classList.remove('bi-heart');
+                    icon.classList.add('bi-heart-fill', 'text-danger');
+                    if(text) text.innerText = 'Saved';
+                }
+            });
+
+            // AJAX Request
+            fetch('tenant/save_property.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'property_id=' + propertyId
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    // Revert if failed
+                    alert('Action failed. Please try again.');
+                    btns.forEach(btn => {
+                        const icon = btn.querySelector('i');
+                        const text = btn.querySelector('.save-text');
+                        
+                        if (isSaved) {
+                            icon.classList.add('bi-heart-fill', 'text-danger');
+                            icon.classList.remove('bi-heart');
+                            if(text) text.innerText = 'Saved';
+                        } else {
+                            icon.classList.add('bi-heart');
+                            icon.classList.remove('bi-heart-fill', 'text-danger');
+                            if(text) text.innerText = 'Save';
+                        }
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred.');
+            });
+        }
+
+        function calculateRentalCost() {
+            const rent = parseFloat(document.getElementById('calcRent').value) || 0;
+            const duration = parseFloat(document.getElementById('calcDuration').value) || 0;
+            const deposit = parseFloat(document.getElementById('calcDeposit').value) || 0;
+            const utilities = parseFloat(document.getElementById('calcUtilities').value) || 0;
+            
+            const resultDiv = document.getElementById('calcResult');
+            const totalCostSpan = document.getElementById('totalCost');
+            const moveInCostSpan = document.getElementById('moveInCost');
+
+            if (rent <= 0 || duration <= 0) {
+                alert('Please enter valid rent amount and duration.');
+                return;
+            }
+
+            const totalRent = rent * duration;
+            const totalUtilities = utilities * duration;
+            const totalCost = totalRent + deposit + totalUtilities;
+            const moveInCost = rent + deposit;
+
+            const currency = '<?php echo $property['currency']; ?>';
+            
+            totalCostSpan.innerText = currency + ' ' + totalCost.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
+            moveInCostSpan.innerText = currency + ' ' + moveInCost.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
+            
+            resultDiv.style.display = 'block';
+        }
 
         function initMap() {
             var location = { lat: <?php echo $lat; ?>, lng: <?php echo $lng; ?> };

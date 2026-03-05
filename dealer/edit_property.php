@@ -79,7 +79,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         'longitude' => !empty($_POST['longitude']) ? floatval($_POST['longitude']) : null,
         'status' => $_POST['status'],
         'amenities' => htmlspecialchars($_POST['amenities']),
-        'video_url' => htmlspecialchars($_POST['video_url'])
+        'video_url' => htmlspecialchars($_POST['video_url']),
+        'capacity' => !empty($_POST['capacity']) ? intval($_POST['capacity']) : null,
+        'people_per_room' => !empty($_POST['people_per_room']) ? intval($_POST['people_per_room']) : null,
+        'event_type' => !empty($_POST['event_type']) ? htmlspecialchars($_POST['event_type']) : null,
+        'catering_available' => isset($_POST['catering_available']) ? 1 : 0,
+        'equipment_available' => isset($_POST['equipment_available']) ? 1 : 0
     ];
 
     if ($propertyModel->update($data)) {
@@ -134,6 +139,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     <option value="boarding_house" <?php echo $property['property_type'] == 'boarding_house' ? 'selected' : ''; ?>>Boarding House</option>
                                     <option value="land" <?php echo $property['property_type'] == 'land' ? 'selected' : ''; ?>>Land</option>
                                     <option value="commercial" <?php echo $property['property_type'] == 'commercial' ? 'selected' : ''; ?>>Commercial</option>
+                                    <option value="wedding_venue" <?php echo $property['property_type'] == 'wedding_venue' ? 'selected' : ''; ?>>Wedding Venue</option>
+                                    <option value="restaurant" <?php echo $property['property_type'] == 'restaurant' ? 'selected' : ''; ?>>Restaurant</option>
+                                    <option value="lodge" <?php echo $property['property_type'] == 'lodge' ? 'selected' : ''; ?>>Lodge</option>
+                                    <option value="studio" <?php echo $property['property_type'] == 'studio' ? 'selected' : ''; ?>>Studio</option>
+                                    <option value="cottage" <?php echo $property['property_type'] == 'cottage' ? 'selected' : ''; ?>>Cottage</option>
+                                    <option value="manor" <?php echo $property['property_type'] == 'manor' ? 'selected' : ''; ?>>Manor</option>
                                 </select>
                             </div>
                             <div class="col-md-2 mb-3">
@@ -141,6 +152,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <select class="form-select" id="listing_purpose" name="listing_purpose" required>
                                     <option value="rent" <?php echo ($property['listing_purpose'] ?? 'rent') == 'rent' ? 'selected' : ''; ?>>For Rent</option>
                                     <option value="sale" <?php echo ($property['listing_purpose'] ?? '') == 'sale' ? 'selected' : ''; ?>>For Sale</option>
+                                    <option value="booking" <?php echo ($property['listing_purpose'] ?? '') == 'booking' ? 'selected' : ''; ?>>For Booking</option>
+                                    <option value="service" <?php echo ($property['listing_purpose'] ?? '') == 'service' ? 'selected' : ''; ?>>Service</option>
                                 </select>
                             </div>
                         </div>
@@ -151,21 +164,52 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         </div>
 
                         <div class="row">
-                            <div class="col-md-3 mb-3">
+                            <!-- Standard Fields -->
+                            <div class="col-md-3 mb-3 field-group group-standard">
                                 <label for="bedrooms" class="form-label fw-bold">Bedrooms</label>
                                 <input type="number" class="form-control" id="bedrooms" name="bedrooms" value="<?php echo $property['bedrooms']; ?>">
                             </div>
-                            <div class="col-md-3 mb-3">
+                            <div class="col-md-3 mb-3 field-group group-standard">
                                 <label for="bathrooms" class="form-label fw-bold">Bathrooms</label>
                                 <input type="number" class="form-control" id="bathrooms" name="bathrooms" value="<?php echo $property['bathrooms']; ?>">
                             </div>
-                            <div class="col-md-3 mb-3">
+
+                            <!-- Boarding Fields -->
+                            <div class="col-md-3 mb-3 field-group group-boarding" style="display:none;">
+                                <label for="people_per_room" class="form-label fw-bold">People per Room</label>
+                                <input type="number" class="form-control" id="people_per_room" name="people_per_room" value="<?php echo $property['people_per_room'] ?? ''; ?>">
+                            </div>
+
+                            <!-- Venue Fields -->
+                            <div class="col-md-3 mb-3 field-group group-venue" style="display:none;">
+                                <label for="capacity" class="form-label fw-bold">Capacity (People)</label>
+                                <input type="number" class="form-control" id="capacity" name="capacity" value="<?php echo $property['capacity'] ?? ''; ?>">
+                            </div>
+                            <div class="col-md-3 mb-3 field-group group-venue" style="display:none;">
+                                <label for="event_type" class="form-label fw-bold">Event Type Suitability</label>
+                                <input type="text" class="form-control" id="event_type" name="event_type" value="<?php echo $property['event_type'] ?? ''; ?>">
+                            </div>
+
+                            <!-- Common Fields -->
+                            <div class="col-md-3 mb-3 field-group group-common">
                                 <label for="rooms" class="form-label fw-bold">Total Rooms</label>
                                 <input type="number" class="form-control" id="rooms" name="rooms" value="<?php echo $property['rooms']; ?>">
                             </div>
                             <div class="col-md-3 mb-3">
                                 <label for="size_sqm" class="form-label fw-bold">Size (sqm)</label>
                                 <input type="number" step="0.01" class="form-control" id="size_sqm" name="size_sqm" value="<?php echo $property['size_sqm']; ?>">
+                            </div>
+                        </div>
+
+                        <!-- Amenities Checkboxes for Venues -->
+                        <div class="mb-3 field-group group-venue" style="display:none;">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="catering_available" name="catering_available" value="1" <?php echo ($property['catering_available'] ?? 0) ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="catering_available">Catering Available</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="equipment_available" name="equipment_available" value="1" <?php echo ($property['equipment_available'] ?? 0) ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="equipment_available">Equipment Available</label>
                             </div>
                         </div>
 
@@ -256,6 +300,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         map.addListener("click", (e) => {
             placeMarkerAndPanTo(e.latLng);
         });
+        // Initial setup for fields
+        updateFields();
     }
 
     function placeMarkerAndPanTo(latLng) {
@@ -272,6 +318,40 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Update hidden inputs
         document.getElementById('latitude').value = latLng.lat();
         document.getElementById('longitude').value = latLng.lng();
+    }
+
+    // Dynamic Field Logic
+    const typeSelect = document.getElementById('property_type');
+    typeSelect.addEventListener('change', updateFields);
+
+    function updateFields() {
+        const type = typeSelect.value;
+        const standardGroups = document.querySelectorAll('.group-standard');
+        const boardingGroups = document.querySelectorAll('.group-boarding');
+        const venueGroups = document.querySelectorAll('.group-venue');
+        const commonGroups = document.querySelectorAll('.group-common');
+
+        // Hide all first
+        standardGroups.forEach(el => el.style.display = 'none');
+        boardingGroups.forEach(el => el.style.display = 'none');
+        venueGroups.forEach(el => el.style.display = 'none');
+        commonGroups.forEach(el => el.style.display = 'none');
+
+        if (['house', 'apartment', 'flat', 'cottage', 'manor'].includes(type)) {
+            standardGroups.forEach(el => el.style.display = 'block');
+            commonGroups.forEach(el => el.style.display = 'block');
+        } else if (type === 'boarding_house') {
+            standardGroups.forEach(el => el.style.display = 'block'); 
+            boardingGroups.forEach(el => el.style.display = 'block');
+            commonGroups.forEach(el => el.style.display = 'block');
+        } else if (type === 'lodge') {
+            standardGroups.forEach(el => el.style.display = 'block'); // Lodges have bedrooms
+            venueGroups.forEach(el => el.style.display = 'block'); // And capacity/events
+            commonGroups.forEach(el => el.style.display = 'block');
+        } else if (['wedding_venue', 'restaurant', 'commercial', 'studio'].includes(type)) {
+            venueGroups.forEach(el => el.style.display = 'block');
+            // Hide standard bedrooms/bathrooms and rooms for purely commercial/event spaces
+        }
     }
 </script>
 </body>

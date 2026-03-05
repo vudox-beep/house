@@ -6,10 +6,11 @@ $propertyModel = new Property();
 $properties = $propertyModel->getAll();
 
 // Handle Search
-if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_GET['property_type']))) {
+if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_GET['property_type']) || isset($_GET['listing_purpose']))) {
     $filters = [
         'location' => $_GET['location'] ?? '',
         'property_type' => $_GET['property_type'] ?? '',
+        'listing_purpose' => $_GET['listing_purpose'] ?? '',
         'min_price' => $_GET['min_price'] ?? '',
         'max_price' => $_GET['max_price'] ?? ''
     ];
@@ -51,6 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                             <li class="nav-item"><a class="nav-link text-muted" href="dealer/dashboard.php">Dashboard</a></li>
                         <?php elseif($_SESSION['user_role'] == 'admin'): ?>
                             <li class="nav-item"><a class="nav-link text-muted" href="admin/dashboard.php">Admin Panel</a></li>
+                        <?php elseif($_SESSION['user_role'] == 'user'): ?>
+                            <li class="nav-item"><a class="nav-link text-muted" href="tenant/dashboard.php">Dashboard</a></li>
                         <?php endif; ?>
                         <li class="nav-item dropdown ms-2">
                             <a class="nav-link dropdown-toggle text-dark" href="#" role="button" data-bs-toggle="dropdown">
@@ -87,6 +90,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                             <option value="">Any Type</option>
                             <option value="apartment">Apartment</option>
                             <option value="house">House</option>
+                            <option value="boarding_house">Boarding House</option>
+                            <option value="land">Land</option>
                             <option value="villa">Villa</option>
                         </select>
                     </div>
@@ -106,36 +111,115 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
     <section class="category-section">
         <div class="container">
             <div class="d-flex justify-content-center gap-4 flex-wrap">
-                <a href="index.php?property_type=apartment" class="text-decoration-none">
+                <a href="listings.php?property_type=apartment" class="text-decoration-none">
                     <div class="category-icon-item <?php echo ($_GET['property_type'] ?? '') == 'apartment' ? 'active' : ''; ?>">
                         <i class="bi bi-building category-icon-img"></i>
                         <span class="category-name">Apartments</span>
                     </div>
                 </a>
-                <a href="index.php?property_type=villa" class="text-decoration-none">
-                    <div class="category-icon-item <?php echo ($_GET['property_type'] ?? '') == 'villa' ? 'active' : ''; ?>">
-                        <i class="bi bi-house-door category-icon-img"></i>
-                        <span class="category-name">Villas</span>
+                <a href="listings.php?property_type=boarding_house" class="text-decoration-none">
+                    <div class="category-icon-item <?php echo ($_GET['property_type'] ?? '') == 'boarding_house' ? 'active' : ''; ?>">
+                        <i class="bi bi-house-heart category-icon-img"></i>
+                        <span class="category-name">Boarding Houses</span>
                     </div>
                 </a>
-                <a href="index.php?property_type=cottage" class="text-decoration-none">
+                <a href="listings.php?property_type=land" class="text-decoration-none">
+                    <div class="category-icon-item <?php echo ($_GET['property_type'] ?? '') == 'land' ? 'active' : ''; ?>">
+                        <i class="bi bi-layers category-icon-img"></i>
+                        <span class="category-name">Land</span>
+                    </div>
+                </a>
+                <a href="listings.php?listing_purpose=sale" class="text-decoration-none">
+                    <div class="category-icon-item <?php echo ($_GET['listing_purpose'] ?? '') == 'sale' ? 'active' : ''; ?>">
+                        <i class="bi bi-tag category-icon-img"></i>
+                        <span class="category-name">Sale</span>
+                    </div>
+                </a>
+                <a href="listings.php?listing_purpose=rent" class="text-decoration-none">
+                    <div class="category-icon-item <?php echo ($_GET['listing_purpose'] ?? '') == 'rent' ? 'active' : ''; ?>">
+                        <i class="bi bi-key category-icon-img"></i>
+                        <span class="category-name">Rent</span>
+                    </div>
+                </a>
+                <a href="listings.php?property_type=cottage" class="text-decoration-none">
                     <div class="category-icon-item <?php echo ($_GET['property_type'] ?? '') == 'cottage' ? 'active' : ''; ?>">
                         <i class="bi bi-tree category-icon-img"></i>
                         <span class="category-name">Cottages</span>
                     </div>
                 </a>
-                <a href="index.php?property_type=studio" class="text-decoration-none">
+                <a href="listings.php?property_type=studio" class="text-decoration-none">
                     <div class="category-icon-item <?php echo ($_GET['property_type'] ?? '') == 'studio' ? 'active' : ''; ?>">
                         <i class="bi bi-easel category-icon-img"></i>
                         <span class="category-name">Studios</span>
                     </div>
                 </a>
-                <a href="index.php?property_type=manor" class="text-decoration-none">
+                <a href="listings.php?property_type=manor" class="text-decoration-none">
                     <div class="category-icon-item <?php echo ($_GET['property_type'] ?? '') == 'manor' ? 'active' : ''; ?>">
                         <i class="bi bi-bank category-icon-img"></i>
                         <span class="category-name">Manors</span>
                     </div>
                 </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Additional Services (Weddings, Restaurants, Studios) -->
+    <section class="py-5">
+        <div class="container">
+            <div class="row g-4 text-center">
+                <!-- Wedding Places -->
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm hover-up">
+                        <div class="position-relative overflow-hidden rounded-top">
+                            <img src="https://images.unsplash.com/photo-1519741497674-611481863552?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" class="card-img-top" alt="Wedding Places" style="height: 200px; object-fit: cover;">
+                            <div class="overlay-gradient position-absolute w-100 h-100 top-0 start-0"></div>
+                        </div>
+                        <div class="card-body">
+                            <div class="icon-circle bg-primary-subtle text-primary mb-3 mx-auto">
+                                <i class="bi bi-heart-fill fs-4"></i>
+                            </div>
+                            <h5 class="card-title fw-bold">Wedding Venues</h5>
+                            <p class="card-text text-muted small">Discover breathtaking venues for your special day. From gardens to banquet halls.</p>
+                            <a href="listings.php?property_type=wedding_venue" class="btn btn-warning text-white btn-sm rounded-pill px-4 fw-bold">Explore Venues</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Restaurants -->
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm hover-up">
+                        <div class="position-relative overflow-hidden rounded-top">
+                            <img src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" class="card-img-top" alt="Restaurants" style="height: 200px; object-fit: cover;">
+                            <div class="overlay-gradient position-absolute w-100 h-100 top-0 start-0"></div>
+                        </div>
+                        <div class="card-body">
+                            <div class="icon-circle bg-success-subtle text-success mb-3 mx-auto">
+                                <i class="bi bi-shop fs-4"></i>
+                            </div>
+                            <h5 class="card-title fw-bold">Restaurants & Dining</h5>
+                            <p class="card-text text-muted small">Find top-rated dining spots and culinary experiences near you.</p>
+                            <a href="listings.php?property_type=restaurant" class="btn btn-warning text-white btn-sm rounded-pill px-4 fw-bold">Find Restaurants</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lodges & Deals -->
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm hover-up">
+                        <div class="position-relative overflow-hidden rounded-top">
+                            <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" class="card-img-top" alt="Lodges" style="height: 200px; object-fit: cover;">
+                            <div class="overlay-gradient position-absolute w-100 h-100 top-0 start-0"></div>
+                        </div>
+                        <div class="card-body">
+                            <div class="icon-circle bg-warning-subtle text-warning mb-3 mx-auto">
+                                <i class="bi bi-house-door-fill fs-4"></i>
+                            </div>
+                            <h5 class="card-title fw-bold">Lodges & Deals</h5>
+                            <p class="card-text text-muted small">Exclusive deals on lodges and vacation rentals for your next getaway.</p>
+                            <a href="listings.php?property_type=lodge" class="btn btn-warning text-white btn-sm rounded-pill px-4 fw-bold">View Deals</a>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -148,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                     <h3 class="section-title">Featured Listings</h3>
                     <p class="section-subtitle mb-0">Hand-picked homes with exceptional reviews and amenities.</p>
                 </div>
-                <a href="index.php?featured=1" class="text-warning fw-bold text-decoration-none">View all <i class="bi bi-arrow-right"></i></a>
+                <a href="listings.php?featured=1" class="text-warning fw-bold text-decoration-none">View all <i class="bi bi-arrow-right"></i></a>
             </div>
 
             <div class="row g-4">
@@ -168,24 +252,61 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                                 <img src="<?php echo $main_image; ?>" class="featured-img" alt="<?php echo htmlspecialchars($property['title']); ?>">
                             </a>
                             <span class="position-absolute top-0 start-0 badge bg-white text-dark m-3 shadow-sm">
-                                <?php echo (($property['listing_purpose'] ?? 'rent') === 'sale') ? 'Selling' : 'Rent'; ?>
+                                <?php 
+                                    $purpose = $property['listing_purpose'] ?? 'rent';
+                                    if ($purpose == 'booking') {
+                                        echo 'Booking';
+                                    } elseif ($purpose == 'service') {
+                                        echo 'Service';
+                                    } elseif ($purpose == 'sale') {
+                                        echo 'Selling';
+                                    } else {
+                                        echo 'Rent';
+                                    }
+                                ?>
                             </span>
                             <span class="position-absolute top-0 end-0 badge bg-success-subtle text-success m-3 shadow-sm">
                                 <i class="bi bi-check-circle-fill"></i> Verified
                             </span>
                             <span class="featured-badge"><i class="bi bi-star-fill text-warning"></i> 4.9</span>
                             <span class="featured-price-badge">
-                                <?php echo $property['currency'] . ' ' . number_format($property['price']); ?>
-                                <?php echo (($property['listing_purpose'] ?? 'rent') === 'rent') ? ' / mo' : ''; ?>
+                                <?php 
+                                    if(in_array($property['property_type'], ['wedding_venue', 'commercial', 'studio'])) {
+                                        echo 'Booking Price: ' . $property['currency'] . ' ' . number_format($property['price']);
+                                    } elseif ($property['property_type'] == 'restaurant') {
+                                        echo 'Service Price: ' . $property['currency'] . ' ' . number_format($property['price']);
+                                    } else {
+                                        echo $property['currency'] . ' ' . number_format($property['price']); 
+                                        if (($property['listing_purpose'] ?? 'rent') === 'rent') {
+                                            if ($property['property_type'] == 'boarding_house') {
+                                                echo ' / person';
+                                            } elseif ($property['property_type'] == 'lodge') {
+                                                echo ' / night';
+                                            } else {
+                                                echo ' / mo';
+                                            }
+                                        }
+                                    }
+                                ?>
                             </span>
                         </div>
                         <div class="featured-body">
                             <div class="featured-title"><?php echo htmlspecialchars($property['title']); ?></div>
                             <div class="featured-location"><i class="bi bi-geo-alt"></i> <?php echo htmlspecialchars($property['location']); ?></div>
                             <div class="featured-amenities">
-                                <span><i class="bi bi-people"></i> <?php echo $property['bedrooms']; ?> Guests</span>
-                                <span><i class="bi bi-layout-sidebar"></i> <?php echo $property['bedrooms']; ?> Beds</span>
-                                <span><i class="bi bi-droplet"></i> <?php echo $property['bathrooms']; ?> Baths</span>
+                                <?php if(in_array($property['property_type'], ['house', 'apartment', 'flat', 'cottage', 'manor', 'lodge'])): ?>
+                                    <span><i class="bi bi-people"></i> <?php echo $property['bedrooms']; ?> Guests</span>
+                                    <span><i class="bi bi-layout-sidebar"></i> <?php echo $property['bedrooms']; ?> Beds</span>
+                                    <span><i class="bi bi-droplet"></i> <?php echo $property['bathrooms']; ?> Baths</span>
+                                <?php elseif($property['property_type'] == 'boarding_house'): ?>
+                                    <span><i class="bi bi-people"></i> <?php echo $property['people_per_room'] ?? 1; ?> / Room</span>
+                                    <span><i class="bi bi-door-open"></i> <?php echo $property['rooms']; ?> Rooms</span>
+                                <?php elseif(in_array($property['property_type'], ['wedding_venue', 'restaurant', 'commercial', 'studio'])): ?>
+                                    <span><i class="bi bi-people-fill"></i> Cap: <?php echo $property['capacity'] ?? 'N/A'; ?></span>
+                                    <span><i class="bi bi-aspect-ratio"></i> <?php echo $property['size_sqm']; ?> m²</span>
+                                <?php else: ?>
+                                    <span><i class="bi bi-aspect-ratio"></i> <?php echo $property['size_sqm']; ?> m²</span>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -231,11 +352,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                                         <img src="<?php echo $main_image; ?>" class="card-img-top" alt="<?php echo htmlspecialchars($property['title']); ?>">
                                     </a>
                                     <span class="position-absolute top-0 end-0 badge bg-white text-dark m-3 shadow-sm">
-                                        <?php echo ucfirst($property['property_type']); ?> · <?php echo ($property['listing_purpose'] ?? 'rent') == 'sale' ? 'Sale' : 'Rent'; ?>
+                                        <?php echo ucfirst(str_replace('_', ' ', $property['property_type'])); ?> · 
+                                        <?php 
+                                            $purpose = $property['listing_purpose'] ?? 'rent';
+                                            if ($purpose == 'booking') echo 'Booking';
+                                            elseif ($purpose == 'service') echo 'Service';
+                                            elseif ($purpose == 'sale') echo 'Sale';
+                                            else echo 'Rent';
+                                        ?>
                                     </span>
                                     <span class="position-absolute bottom-0 start-0 badge bg-primary m-3 shadow-sm">
-                                        <?php echo $property['currency'] . ' ' . number_format($property['price']); ?>
-                                        <?php echo ($property['listing_purpose'] ?? 'rent') == 'rent' ? '/ mo' : ''; ?>
+                                        <?php 
+                                            if(in_array($property['property_type'], ['wedding_venue', 'commercial', 'studio'])) {
+                                                echo 'Booking Price: ' . $property['currency'] . ' ' . number_format($property['price']);
+                                            } elseif ($property['property_type'] == 'restaurant') {
+                                                echo 'Service Price: ' . $property['currency'] . ' ' . number_format($property['price']);
+                                            } else {
+                                                echo $property['currency'] . ' ' . number_format($property['price']);
+                                                if (($property['listing_purpose'] ?? 'rent') == 'rent') {
+                                                    if ($property['property_type'] == 'boarding_house') {
+                                                        echo '/ person';
+                                                    } elseif ($property['property_type'] == 'lodge') {
+                                                        echo '/ night';
+                                                    } else {
+                                                        echo '/ mo';
+                                                    }
+                                                }
+                                            }
+                                        ?>
                                     </span>
                                 </div>
                                 <div class="card-body">
@@ -252,9 +396,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                                         <i class="bi bi-geo-alt-fill text-primary"></i> <?php echo htmlspecialchars($property['location']); ?>
                                     </p>
                                     <div class="property-features border-top pt-3">
-                                        <span><i class="bi bi-people-fill"></i> <?php echo $property['bedrooms']; ?> Beds</span>
-                                        <span><i class="bi bi-droplet-fill"></i> <?php echo $property['bathrooms']; ?> Baths</span>
-                                        <span><i class="bi bi-aspect-ratio-fill"></i> <?php echo $property['size_sqm']; ?> m²</span>
+                                        <?php if(in_array($property['property_type'], ['house', 'apartment', 'flat', 'cottage', 'manor', 'lodge'])): ?>
+                                            <span><i class="bi bi-people-fill"></i> <?php echo $property['bedrooms']; ?> Beds</span>
+                                            <span><i class="bi bi-droplet-fill"></i> <?php echo $property['bathrooms']; ?> Baths</span>
+                                            <span><i class="bi bi-aspect-ratio-fill"></i> <?php echo $property['size_sqm']; ?> m²</span>
+                                        <?php elseif($property['property_type'] == 'boarding_house'): ?>
+                                            <span><i class="bi bi-people-fill"></i> <?php echo $property['people_per_room'] ?? 1; ?> / Room</span>
+                                            <span><i class="bi bi-door-open-fill"></i> <?php echo $property['rooms']; ?> Rooms</span>
+                                        <?php elseif(in_array($property['property_type'], ['wedding_venue', 'restaurant', 'commercial', 'studio'])): ?>
+                                            <span><i class="bi bi-people-fill"></i> Cap: <?php echo $property['capacity'] ?? 'N/A'; ?></span>
+                                            <span><i class="bi bi-aspect-ratio-fill"></i> <?php echo $property['size_sqm']; ?> m²</span>
+                                        <?php else: ?>
+                                            <span><i class="bi bi-aspect-ratio-fill"></i> <?php echo $property['size_sqm']; ?> m²</span>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             </div>
@@ -310,8 +464,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                     <h6 class="text-white mb-3">Support</h6>
                     <ul class="list-unstyled small text-muted">
                         <li class="mb-2"><a href="#" class="text-decoration-none text-white hover-warning">Help Center</a></li>
-                        <li class="mb-2"><a href="#" class="text-decoration-none text-white hover-warning">Terms of Service</a></li>
-                        <li class="mb-2"><a href="#" class="text-decoration-none text-white hover-warning">Privacy Policy</a></li>
+                        <li class="mb-2"><a href="terms.php" class="text-decoration-none text-white hover-warning">Terms of Service</a></li>
+                        <li class="mb-2"><a href="privacy.php" class="text-decoration-none text-white hover-warning">Privacy Policy</a></li>
                         <li class="mb-2"><a href="#" class="text-decoration-none text-white hover-warning">FAQs</a></li>
                     </ul>
                 </div>

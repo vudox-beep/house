@@ -1,6 +1,7 @@
 <?php
 require_once 'config/config.php';
 require_once 'models/User.php';
+require_once 'includes/ActivityLogger.php';
 
 $error = '';
 
@@ -9,38 +10,62 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = "Session expired. Please refresh.";
     } else {
-        $user = new User();
-        $email = sanitize_input($_POST['email']);
-        $password = $_POST['password'];
+        // Brute Force Protection (Simple Rate Limiting)
+        if (!isset($_SESSION['login_attempts'])) {
+            $_SESSION['login_attempts'] = 0;
+            $_SESSION['last_attempt_time'] = time();
+        }
 
-        $loggedInUser = $user->login($email, $password);
+        // Reset attempts if 15 minutes passed
+        if (time() - $_SESSION['last_attempt_time'] > 900) {
+            $_SESSION['login_attempts'] = 0;
+            $_SESSION['last_attempt_time'] = time();
+        }
 
-        if ($loggedInUser === "unverified") {
-            $error = "Please verify your email address before logging in.";
-        } elseif ($loggedInUser === "banned") {
-            $error = "Your account has been banned. Please contact support.";
-        } elseif ($loggedInUser) {
-            $_SESSION['user_id'] = $loggedInUser['id'];
-            $_SESSION['user_role'] = $loggedInUser['role'];
-            $_SESSION['user_name'] = $loggedInUser['name'];
-            $_SESSION['profile_image'] = $loggedInUser['profile_image']; // Set profile image in session
-
-            // Regenerate session ID to prevent session fixation
-            session_regenerate_id(true);
-
-            if ($loggedInUser['role'] == 'dealer') {
-                header("Location: dealer/dashboard.php");
-            } elseif ($loggedInUser['role'] == 'admin') {
-                header("Location: admin/dashboard.php");
-            } elseif ($loggedInUser['role'] == 'user') {
-                // Redirect Tenants/Users to Tenant Dashboard
-                header("Location: tenant/dashboard.php");
-            } else {
-                header("Location: index.php");
-            }
-            exit;
+        if ($_SESSION['login_attempts'] >= 5) {
+            $error = "Too many failed login attempts. Please try again in 15 minutes.";
         } else {
-            $error = "Invalid credentials. Please try again.";
+            $user = new User();
+            $logger = new ActivityLogger();
+            $email = sanitize_input($_POST['email']);
+            $password = $_POST['password'];
+
+            $loggedInUser = $user->login($email, $password);
+
+            if ($loggedInUser === "unverified") {
+                $error = "Please verify your email address before logging in.";
+            } elseif ($loggedInUser === "banned") {
+                $error = "Your account has been banned. Please contact support.";
+            } elseif ($loggedInUser) {
+                // Reset attempts on success
+                $_SESSION['login_attempts'] = 0;
+                
+                $_SESSION['user_id'] = $loggedInUser['id'];
+                $_SESSION['user_role'] = $loggedInUser['role'];
+                $_SESSION['user_name'] = $loggedInUser['name'];
+                $_SESSION['profile_image'] = $loggedInUser['profile_image']; // Set profile image in session
+
+                // Log Login
+                $logger->log($loggedInUser['id'], $loggedInUser['role'], 'login', 'User logged in successfully');
+
+                // Regenerate session ID to prevent session fixation
+                session_regenerate_id(true);
+
+                if ($loggedInUser['role'] == 'dealer') {
+                    header("Location: dealer/dashboard.php");
+                } elseif ($loggedInUser['role'] == 'admin') {
+                    header("Location: admin/dashboard.php");
+                } elseif ($loggedInUser['role'] == 'user') {
+                    // Redirect Tenants/Users to Tenant Dashboard
+                    header("Location: tenant/dashboard.php");
+                } else {
+                    header("Location: index.php");
+                }
+                exit;
+            } else {
+                $_SESSION['login_attempts']++;
+                $error = "Invalid credentials. Please try again.";
+            }
         }
     }
 }

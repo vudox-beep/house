@@ -2,12 +2,14 @@
 require_once 'config/config.php';
 require_once 'models/User.php';
 require_once 'includes/SimpleMailer.php';
+require_once 'includes/ActivityLogger.php';
 
 $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $user = new User();
+    $logger = new ActivityLogger();
     
     $name = $_POST['name'];
     $email = $_POST['email'];
@@ -42,6 +44,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         ];
 
         if ($user->register($data)) {
+            // Log Registration
+            // Since we don't have the user ID easily from register() (it returns bool), we'll query for it or just log with null user_id
+            // Ideally User::register should return the ID. For now, we'll fetch it by email.
+            $conn = (new Database())->connect();
+            $stmt = $conn->prepare("SELECT id FROM users WHERE email = :email");
+            $stmt->execute([':email' => $email]);
+            $newUser = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($newUser) {
+                $logger->log($newUser['id'], $role, 'register', "New user registered: $email ($role)");
+            }
+
             // Send Email
             $mailer = new SimpleMailer();
             $verifyLink = SITE_URL . "/verify_email.php?token=" . $token;
@@ -90,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </html>";
 
             if ($mailer->send($email, $subject, $body)) {
-                $success = "Registration successful! Check your email.";
+                $success = "Registration successful! Please check your email (including spam folder) to verify your account.";
             } else {
                 $success = "Registration successful, but failed to send email.";
             }
@@ -250,7 +263,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <div class="form-check mb-4">
                                 <input class="form-check-input" type="checkbox" id="terms" required>
                                 <label class="form-check-label small text-muted" for="terms">
-                                    I agree to the <a href="#" class="text-warning text-decoration-none">Terms of Service</a> and <a href="#" class="text-warning text-decoration-none">Privacy Policy</a>.
+                                    I agree to the <a href="terms.php" class="text-warning text-decoration-none">Terms of Service</a> and <a href="privacy.php" class="text-warning text-decoration-none">Privacy Policy</a>.
                                 </label>
                             </div>
 

@@ -54,7 +54,12 @@ class Property {
                       status = :status,
                       is_featured = :is_featured,
                       amenities = :amenities,
-                      video_url = :video_url';
+                      video_url = :video_url,
+                      capacity = :capacity,
+                      people_per_room = :people_per_room,
+                      event_type = :event_type,
+                      catering_available = :catering_available,
+                      equipment_available = :equipment_available';
 
         $stmt = $this->conn->prepare($query);
 
@@ -79,6 +84,11 @@ class Property {
         $stmt->bindParam(':is_featured', $data['is_featured']);
         $stmt->bindParam(':amenities', $data['amenities']);
         $stmt->bindParam(':video_url', $data['video_url']);
+        $stmt->bindParam(':capacity', $data['capacity']);
+        $stmt->bindParam(':people_per_room', $data['people_per_room']);
+        $stmt->bindParam(':event_type', $data['event_type']);
+        $stmt->bindParam(':catering_available', $data['catering_available']);
+        $stmt->bindParam(':equipment_available', $data['equipment_available']);
 
         if($stmt->execute()) {
             return $this->conn->lastInsertId();
@@ -106,7 +116,12 @@ class Property {
                       longitude = :longitude,
                       status = :status,
                       amenities = :amenities,
-                      video_url = :video_url
+                      video_url = :video_url,
+                      capacity = :capacity,
+                      people_per_room = :people_per_room,
+                      event_type = :event_type,
+                      catering_available = :catering_available,
+                      equipment_available = :equipment_available
                   WHERE id = :id AND dealer_id = :dealer_id';
 
         $stmt = $this->conn->prepare($query);
@@ -132,6 +147,11 @@ class Property {
         $stmt->bindParam(':status', $data['status']);
         $stmt->bindParam(':amenities', $data['amenities']);
         $stmt->bindParam(':video_url', $data['video_url']);
+        $stmt->bindParam(':capacity', $data['capacity']);
+        $stmt->bindParam(':people_per_room', $data['people_per_room']);
+        $stmt->bindParam(':event_type', $data['event_type']);
+        $stmt->bindParam(':catering_available', $data['catering_available']);
+        $stmt->bindParam(':equipment_available', $data['equipment_available']);
 
         if($stmt->execute()) {
             return true;
@@ -200,6 +220,9 @@ class Property {
         if (!empty($filters['property_type'])) {
             $query .= ' AND property_type = :property_type';
         }
+        if (!empty($filters['listing_purpose'])) {
+            $query .= ' AND listing_purpose = :listing_purpose';
+        }
         if (!empty($filters['max_price'])) {
             $query .= ' AND price <= :max_price';
         }
@@ -236,6 +259,9 @@ class Property {
         }
         if (!empty($filters['property_type'])) {
             $stmt->bindParam(':property_type', $filters['property_type']);
+        }
+        if (!empty($filters['listing_purpose'])) {
+            $stmt->bindParam(':listing_purpose', $filters['listing_purpose']);
         }
         if (!empty($filters['max_price'])) {
             $stmt->bindParam(':max_price', $filters['max_price']);

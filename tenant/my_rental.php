@@ -26,56 +26,85 @@ $rentals = $stmt->fetchAll(PDO::FETCH_ASSOC);
 // Calculate Next Due Date for each rental
 foreach ($rentals as &$r) {
     // Get the last approved payment month
-    $sql_last_paid = "SELECT month_year FROM rent_payments 
+    // Order by created_at as we don't have period_end column yet
+    $sql_last_paid = "SELECT month_year, months_paid, created_at FROM rent_payments 
                       WHERE rental_id = :rid AND status = 'approved' 
-                      ORDER BY created_at DESC LIMIT 1";
+                      ORDER BY id DESC LIMIT 1";
     $stmt_last = $conn->prepare($sql_last_paid);
     $stmt_last->execute([':rid' => $r['id']]);
     $last_paid = $stmt_last->fetch(PDO::FETCH_ASSOC);
 
-    if ($last_paid) {
+    if ($last_paid && !empty($last_paid['month_year'])) {
         // Parse the last paid month (e.g., "March 2026")
         $last_paid_date = DateTime::createFromFormat('!F Y', $last_paid['month_year']);
+        
         if ($last_paid_date) {
-            // Next due is the month AFTER the last paid month
+            // Determine months paid (default to 1 if column missing or 0)
+            $months_paid = isset($last_paid['months_paid']) && $last_paid['months_paid'] > 0 ? (int)$last_paid['months_paid'] : 1;
+            
+            // Calculate Billing Start Date (The start of the period being paid for)
+            // If next due is May 15, then billing start is May 15.
+            // If the user last paid for March (1 month), coverage ended April 15 (approx).
+            // So next due is April 15.
+            
+            // The logic: 
+            // Last Paid Month: March
+            // Months Paid: 1
+            // Covered Until: April
+            // Next Due: April
+            
+            // Wait, if I pay for March 2026 (1 month), it covers March.
+            // So next due is April.
+            
+            // If the user is seeing "March 15" again, it means the calculation didn't advance enough.
+            // Let's check:
+            // Last Paid: March 2026.
+            // Months Paid: 1.
+            // Next Due = March + 1 month = April.
+            
+            // IF the user paid for "February" last time, then next due is March.
+            // The user said "if i paid billing start on 15".
+            // If billing starts March 15, and they paid 1 month, they are covered until April 15.
+            // So next due date is April 15.
+            
+            // Ensure we are adding months correctly to the *paid* month.
+            // If DB says `month_year` = "March 2026", that is the month they paid FOR.
+            // So next payment starts AFTER that month.
+            
             $next_due = clone $last_paid_date;
-            $next_due->modify('+1 month');
+            $next_due->modify('+' . $months_paid . ' month');
             
             // Adjust day to match start date
             $start_date = new DateTime($r['start_date']);
             $start_day = (int)$start_date->format('d');
-            
             $days_in_month = (int)$next_due->format('t');
             $target_day = min($start_day, $days_in_month);
             $next_due->setDate((int)$next_due->format('Y'), (int)$next_due->format('m'), $target_day);
             
-            // Calculate Billing Start Date (Start of the covered period)
-            $billing_start = clone $last_paid_date;
-            
-            // Adjust day to match start date
-            $days_in_billing_month = (int)$billing_start->format('t');
-            $target_billing_day = min($start_day, $days_in_billing_month);
-            $billing_start->setDate((int)$billing_start->format('Y'), (int)$billing_start->format('m'), $target_billing_day);
-            
-            $r['billing_start_date'] = $billing_start->format('M d, Y');
+            // Billing Start Date: The date the last payment was created/approved
+            // This reflects "When did I last pay?"
+            if (!empty($last_paid['created_at'])) {
+                $r['billing_start_date'] = date('M d, Y', strtotime($last_paid['created_at']));
+            } else {
+                $r['billing_start_date'] = 'N/A';
+            }
             
             $r['next_due_date'] = $next_due->format('M d, Y');
             
-            // Calculate status (Paid vs Overdue) - Day Precise
+            // Calculate status
             $today = new DateTime();
             $today->setTime(0, 0, 0);
             
             $next_due_compare = clone $next_due;
             $next_due_compare->setTime(0, 0, 0);
             
-            if ($next_due_compare < $today) {
+             if ($next_due_compare < $today) {
                 $r['payment_status'] = 'Overdue';
                 $r['status_color'] = 'danger';
             } elseif ($next_due_compare == $today) {
                 $r['payment_status'] = 'Due Today';
                 $r['status_color'] = 'warning';
             } else {
-                // Due date is in the future
                 if ($next_due_compare->format('Y-m') == $today->format('Y-m')) {
                     $r['payment_status'] = 'Due This Month';
                     $r['status_color'] = 'warning';
@@ -85,15 +114,23 @@ foreach ($rentals as &$r) {
                 }
             }
         } else {
-            // Fallback if date parsing fails
-            $r['next_due_date'] = date('M d, Y', strtotime('+1 month'));
-            $r['payment_status'] = 'Due Soon';
-            $r['status_color'] = 'warning';
+             // Fallback if date parsing fails
+             $r['next_due_date'] = date('M d, Y', strtotime('+1 month'));
+             if (!empty($last_paid['created_at'])) {
+                 $r['billing_start_date'] = date('M d, Y', strtotime($last_paid['created_at']));
+             } else {
+                 $r['billing_start_date'] = 'N/A';
+             }
+             $r['payment_status'] = 'Due Soon';
+             $r['status_color'] = 'warning';
         }
     } else {
         // No payments yet, due date is start date
         $start_date = new DateTime($r['start_date']);
         $r['next_due_date'] = $start_date->format('M d, Y');
+        
+        // Billing start date is the rental start date
+        $r['billing_start_date'] = $start_date->format('M d, Y');
         
         // Check if start date is in past (Day Precise)
         $today = new DateTime();
@@ -154,7 +191,7 @@ unset($r); // Break reference
 
                             <div class="row g-2">
                                 <div class="col-6">
-                                    <small class="text-muted d-block">Billing Start</small>
+                                    <small class="text-muted d-block">Paid Day</small>
                                     <span class="fw-medium"><?php echo $rental['billing_start_date']; ?></span>
                                 </div>
                                 <div class="col-6">

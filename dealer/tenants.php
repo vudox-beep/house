@@ -4,6 +4,12 @@ require_once '../models/Property.php';
 require_once '../models/User.php';
 require_once '../includes/SimpleMailer.php';
 
+// Auth Check
+if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'dealer') {
+    header("Location: ../login.php");
+    exit();
+}
+
 $dealer_id = $_SESSION['user_id'];
 $db = new Database();
 $conn = $db->connect();
@@ -169,6 +175,31 @@ if (!$is_subscribed) {
         header("Location: tenants.php");
         exit();
     }
+
+    // End Tenancy Logic
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['end_tenancy'])) {
+        $rental_id = $_POST['rental_id'];
+        
+        // Verify rental belongs to dealer
+        $sql_verify = "SELECT id FROM rentals WHERE id = :rid AND dealer_id = :did";
+        $stmt_verify = $conn->prepare($sql_verify);
+        $stmt_verify->execute([':rid' => $rental_id, ':did' => $dealer_id]);
+        
+        if ($stmt_verify->fetch()) {
+            // Delete the rental record entirely
+            $sql_delete = "DELETE FROM rentals WHERE id = :rid";
+            $stmt_delete = $conn->prepare($sql_delete);
+            if ($stmt_delete->execute([':rid' => $rental_id])) {
+                $_SESSION['success'] = "Tenant removed from property successfully.";
+            } else {
+                $_SESSION['error'] = "Failed to remove tenant.";
+            }
+        } else {
+            $_SESSION['error'] = "Invalid rental record.";
+        }
+        header("Location: tenants.php");
+        exit();
+    }
 }
 
 // Include Header
@@ -234,6 +265,49 @@ $tenant_history = [];
 foreach ($all_history_raw as $h) {
     $tenant_history[$h['tenant_id']][] = $h;
 }
+
+// Calculate Next Due Date for each tenant
+foreach ($tenants as &$t) {
+    // Get last approved payment
+    $sql_last_paid = "SELECT month_year, created_at, months_paid FROM rent_payments 
+                      WHERE rental_id = :rid AND status = 'approved' 
+                      ORDER BY id DESC LIMIT 1";
+    $stmt_last = $conn->prepare($sql_last_paid);
+    $stmt_last->execute([':rid' => $t['id']]);
+    $last_paid = $stmt_last->fetch(PDO::FETCH_ASSOC);
+
+    $start_date = new DateTime($t['start_date']);
+    $start_day = (int)$start_date->format('d');
+
+    if ($last_paid) {
+        $last_paid_date = DateTime::createFromFormat('!F Y', $last_paid['month_year']);
+        if ($last_paid_date) {
+            // Determine months paid (default to 1 if column missing or 0)
+            $months_paid = isset($last_paid['months_paid']) && $last_paid['months_paid'] > 0 ? (int)$last_paid['months_paid'] : 1;
+            
+            // Next due is +X months from the last paid month
+            $next_due = clone $last_paid_date;
+            $next_due->modify('+' . $months_paid . ' month');
+            
+            // Adjust day to match start date
+            $days_in_month = (int)$next_due->format('t');
+            $target_day = min($start_day, $days_in_month);
+            $next_due->setDate((int)$next_due->format('Y'), (int)$next_due->format('m'), $target_day);
+            
+            $t['next_due_date'] = $next_due->format('M d, Y');
+            $t['due_timestamp'] = $next_due->getTimestamp();
+        } else {
+             $t['next_due_date'] = date('M d, Y', strtotime('+1 month'));
+             $t['due_timestamp'] = strtotime('+1 month');
+        }
+    } else {
+        // No payments yet, due date is start date
+        $t['next_due_date'] = $start_date->format('M d, Y');
+        $t['due_timestamp'] = $start_date->getTimestamp();
+    }
+}
+unset($t); // Break reference
+
 ?>
 
 <!-- Main Content Area -->
@@ -390,16 +464,21 @@ foreach ($all_history_raw as $h) {
 
                     <!-- Recent History -->
                     <div class="tm-card mb-4">
-                        <div class="tm-card-header">
+                        <div class="tm-card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
                             <h6 class="mb-0 fw-bold">Recent Activity</h6>
+                            <div class="search-box">
+                                <i class="bi bi-search text-muted"></i>
+                                <input type="text" id="recentActivitySearch" class="form-control form-control-sm border-0 bg-light" placeholder="Search activity...">
+                            </div>
                         </div>
                         <div class="tm-card-body p-0">
                             <div class="table-responsive">
-                                <table class="table table-hover mb-0 align-middle small">
+                                <table class="table table-hover mb-0 align-middle small" id="recentActivityTable">
                                     <thead class="bg-light text-muted">
                                         <tr>
                                             <th class="ps-3 border-0">Tenant</th>
                                             <th class="border-0">Date</th>
+                                            <th class="border-0">For Month</th>
                                             <th class="text-end pe-3 border-0">Amt</th>
                                         </tr>
                                     </thead>
@@ -411,11 +490,12 @@ foreach ($all_history_raw as $h) {
                                                         <?php echo htmlspecialchars($pay['tenant_name']); ?>
                                                     </td>
                                                     <td class="text-muted"><?php echo date('M d, Y', strtotime($pay['created_at'])); ?></td>
+                                                    <td class="text-muted small"><?php echo htmlspecialchars($pay['month_year']); ?></td>
                                                     <td class="text-end pe-3 fw-medium"><?php echo number_format($pay['amount']); ?></td>
                                                 </tr>
                                             <?php endforeach; ?>
                                         <?php else: ?>
-                                            <tr><td colspan="3" class="text-center py-3 text-muted">No recent history</td></tr>
+                                            <tr><td colspan="4" class="text-center py-3 text-muted">No recent history</td></tr>
                                         <?php endif; ?>
                                     </tbody>
                                 </table>
@@ -442,6 +522,7 @@ foreach ($all_history_raw as $h) {
                                             <th class="ps-4">Tenant</th>
                                             <th>Property</th>
                                             <th>Rent</th>
+                                            <th>Next Due</th>
                                             <th>Reference ID</th>
                                             <th>Status</th>
                                             <th class="text-end pe-4">Actions</th>
@@ -471,6 +552,16 @@ foreach ($all_history_raw as $h) {
                                                     <td>
                                                         <div class="fw-bold text-dark"><?php echo number_format($t['rent_amount']); ?></div>
                                                         <div class="small text-muted">per month</div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="fw-bold <?php echo ($t['due_timestamp'] < time()) ? 'text-danger' : 'text-success'; ?>">
+                                                            <?php echo $t['next_due_date']; ?>
+                                                        </div>
+                                                        <?php if($t['due_timestamp'] < time()): ?>
+                                                            <div class="small text-danger fw-bold">Overdue</div>
+                                                        <?php else: ?>
+                                                            <div class="small text-muted">Upcoming</div>
+                                                        <?php endif; ?>
                                                     </td>
                                                     <td>
                                                         <?php if(!empty($t['payment_reference'])): ?>
@@ -506,7 +597,14 @@ foreach ($all_history_raw as $h) {
                                                                     </button>
                                                                 </li>
                                                                 <li><hr class="dropdown-divider"></li>
-                                                                <li><a class="dropdown-item py-2 text-danger" href="#"><i class="bi bi-trash3 me-2"></i> End Tenancy</a></li>
+                                                                <li>
+                                                                    <form method="POST" onsubmit="return confirm('Are you sure you want to end this tenancy? This action cannot be undone.');">
+                                                                        <input type="hidden" name="rental_id" value="<?php echo $t['id']; ?>">
+                                                                        <button type="submit" name="end_tenancy" class="dropdown-item py-2 text-danger">
+                                                                            <i class="bi bi-trash3 me-2"></i> End Tenancy
+                                                                        </button>
+                                                                    </form>
+                                                                </li>
                                                             </ul>
                                                         </div>
                                                     </td>
@@ -514,7 +612,7 @@ foreach ($all_history_raw as $h) {
                                             <?php endforeach; ?>
                                         <?php else: ?>
                                             <tr>
-                                                <td colspan="6" class="text-center py-5">
+                                                <td colspan="7" class="text-center py-5">
                                                     <div class="text-muted opacity-50 mb-2"><i class="bi bi-people fs-1"></i></div>
                                                     <p class="text-muted">No active tenants found.</p>
                                                     <button class="btn btn-sm btn-primary-modern" data-bs-toggle="modal" data-bs-target="#addTenantModal">Add Your First Tenant</button>
@@ -721,6 +819,26 @@ foreach ($all_history_raw as $h) {
                 sidebar.classList.remove('active');
             }
         });
+
+        // Search functionality for Recent Activity
+        const recentSearch = document.getElementById('recentActivitySearch');
+        const recentTable = document.getElementById('recentActivityTable');
+        if (recentSearch && recentTable) {
+            recentSearch.addEventListener('keyup', function() {
+                const filter = this.value.toLowerCase();
+                const rows = recentTable.getElementsByTagName('tr');
+                
+                // Start from 1 to skip header row
+                for (let i = 1; i < rows.length; i++) {
+                    let text = rows[i].textContent || rows[i].innerText;
+                    if (text.toLowerCase().indexOf(filter) > -1) {
+                        rows[i].style.display = "";
+                    } else {
+                        rows[i].style.display = "none";
+                    }
+                }
+            });
+        }
     });
 </script>
 </body>

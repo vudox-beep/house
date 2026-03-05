@@ -15,6 +15,11 @@
             </a>
         </li>
         <li class="sidebar-item">
+            <a href="saved_properties.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'saved_properties.php' ? 'active' : ''; ?>">
+                <i class="bi bi-heart-fill"></i> Saved Properties
+            </a>
+        </li>
+        <li class="sidebar-item">
             <a href="payments.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'payments.php' ? 'active' : ''; ?>">
                 <i class="bi bi-wallet2"></i> Rent Payments
             </a>

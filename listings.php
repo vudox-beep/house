@@ -10,6 +10,7 @@ $filters = [
     'city' => $_GET['city'] ?? '',
     'country' => $_GET['country'] ?? '',
     'property_type' => $_GET['property_type'] ?? '',
+    'listing_purpose' => $_GET['listing_purpose'] ?? '',
     'min_price' => $_GET['min_price'] ?? '',
     'max_price' => $_GET['max_price'] ?? '',
     'bedrooms' => $_GET['bedrooms'] ?? '',
@@ -45,6 +46,13 @@ $properties = $propertyModel->search($filters);
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item"><a class="nav-link" href="index.php">Home</a></li>
                     <?php if(isset($_SESSION['user_id'])): ?>
+                        <?php if($_SESSION['user_role'] == 'dealer'): ?>
+                            <li class="nav-item"><a class="nav-link" href="dealer/dashboard.php">Dashboard</a></li>
+                        <?php elseif($_SESSION['user_role'] == 'admin'): ?>
+                            <li class="nav-item"><a class="nav-link" href="admin/dashboard.php">Admin Panel</a></li>
+                        <?php elseif($_SESSION['user_role'] == 'user'): ?>
+                            <li class="nav-item"><a class="nav-link" href="tenant/dashboard.php">Dashboard</a></li>
+                        <?php endif; ?>
                         <li class="nav-item"><a class="nav-link" href="logout.php">Logout</a></li>
                     <?php else: ?>
                         <li class="nav-item"><a class="nav-link" href="login.php">Login</a></li>
@@ -98,13 +106,25 @@ $properties = $propertyModel->search($filters);
                             </select>
                         </div>
 
+                        <!-- Listing Purpose -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-uppercase">Purpose</label>
+                            <select class="form-select" name="listing_purpose">
+                                <option value="">Any Purpose</option>
+                                <option value="rent" <?php echo ($filters['listing_purpose'] == 'rent') ? 'selected' : ''; ?>>For Rent</option>
+                                <option value="sale" <?php echo ($filters['listing_purpose'] == 'sale') ? 'selected' : ''; ?>>For Sale</option>
+                                <option value="booking" <?php echo ($filters['listing_purpose'] == 'booking') ? 'selected' : ''; ?>>For Booking</option>
+                                <option value="service" <?php echo ($filters['listing_purpose'] == 'service') ? 'selected' : ''; ?>>Service</option>
+                            </select>
+                        </div>
+
                         <!-- Property Type -->
                         <div class="mb-3">
                             <label class="form-label fw-bold small text-uppercase">Category</label>
                             <select class="form-select" name="property_type">
                                 <option value="">All Categories</option>
                                 <?php 
-                                $types = ['apartment', 'house', 'villa', 'cottage', 'studio', 'flat', 'boarding_house', 'manor'];
+                                $types = ['apartment', 'house', 'villa', 'cottage', 'studio', 'flat', 'boarding_house', 'manor', 'wedding_venue', 'restaurant', 'lodge', 'commercial'];
                                 foreach($types as $type): 
                                 ?>
                                     <option value="<?php echo $type; ?>" <?php echo ($filters['property_type'] == $type) ? 'selected' : ''; ?>>
@@ -177,7 +197,14 @@ $properties = $propertyModel->search($filters);
                                             <img src="<?php echo $main_image; ?>" class="listing-img" alt="<?php echo htmlspecialchars($property['title']); ?>">
                                         </a>
                                         <span class="badge bg-white text-dark listing-badge position-absolute top-0 end-0 m-3 fw-bold">
-                                            <?php echo ucfirst($property['property_type']); ?>
+                                            <?php echo ucfirst(str_replace('_', ' ', $property['property_type'])); ?> · 
+                                            <?php 
+                                                $purpose = $property['listing_purpose'] ?? 'rent';
+                                                if ($purpose == 'booking') echo 'Booking';
+                                                elseif ($purpose == 'service') echo 'Service';
+                                                elseif ($purpose == 'sale') echo 'Sale';
+                                                else echo 'Rent';
+                                            ?>
                                         </span>
                                         <?php if($property['is_featured']): ?>
                                             <span class="badge bg-warning text-dark position-absolute top-0 start-0 m-3 fw-bold">Featured</span>
@@ -185,8 +212,32 @@ $properties = $propertyModel->search($filters);
                                     </div>
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between mb-2">
-                                            <span class="text-price fs-5"><?php echo $property['currency'] . ' ' . number_format($property['price']); ?></span>
-                                            <small class="text-muted">/ month</small>
+                                            <span class="text-price fs-5">
+                                                <?php 
+                                                    if(in_array($property['property_type'], ['wedding_venue', 'commercial', 'studio'])) {
+                                                        echo 'Booking Price: ' . $property['currency'] . ' ' . number_format($property['price']);
+                                                    } elseif ($property['property_type'] == 'restaurant') {
+                                                        echo 'Service Price: ' . $property['currency'] . ' ' . number_format($property['price']);
+                                                    } else {
+                                                        echo $property['currency'] . ' ' . number_format($property['price']);
+                                                    }
+                                                ?>
+                                            </span>
+                                            <small class="text-muted">
+                                                <?php 
+                                                    if (!in_array($property['property_type'], ['wedding_venue', 'restaurant', 'commercial', 'studio'])) {
+                                                        if (($property['listing_purpose'] ?? 'rent') == 'rent') {
+                                                            if ($property['property_type'] == 'boarding_house') {
+                                                                echo '/ person';
+                                                            } elseif ($property['property_type'] == 'lodge') {
+                                                                echo '/ night';
+                                                            } else {
+                                                                echo '/ month';
+                                                            }
+                                                        }
+                                                    }
+                                                ?>
+                                            </small>
                                         </div>
                                         <h5 class="card-title mb-1">
                                             <a href="property_details.php?id=<?php echo $property['id']; ?>" class="text-dark text-decoration-none">

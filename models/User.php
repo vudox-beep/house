@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/../config/db.php';
 
+require_once __DIR__ . '/../includes/SimpleMailer.php';
+
 class User {
     private $conn;
     private $table = 'users';
@@ -119,6 +121,22 @@ class User {
             $updateStmt = $this->conn->prepare($updateQuery);
             $updateStmt->bindParam(':id', $user['id']);
             if ($updateStmt->execute()) {
+                
+                // Send "Thank You" Email
+                $mailer = new SimpleMailer();
+                $subject = "Welcome to " . SITE_NAME . " - Account Verified";
+                $body = "
+                    <h2>Account Verified Successfully!</h2>
+                    <p>Dear " . htmlspecialchars($user['name']) . ",</p>
+                    <p>Thank you for registering with " . SITE_NAME . ".</p>
+                    <p>Your email has been successfully verified, and your account is now active.</p>
+                    <p><strong>Note:</strong> If you do not see our emails in your inbox, please check your spam or junk folder.</p>
+                    <br>
+                    <p>Best regards,<br>The " . SITE_NAME . " Team</p>
+                ";
+                
+                $mailer->send($user['email'], $subject, $body);
+
                 return true;
             }
         }

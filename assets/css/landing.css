@@ -201,27 +201,35 @@ a:hover {
     color: #666;
     transition: all 0.2s;
     cursor: pointer;
-    padding: 10px;
+    padding: 10px 15px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 90px;
 }
 
 .category-icon-item:hover {
     color: var(--primary-color);
-    transform: translateY(-3px);
+    background-color: #fff9e6;
+    transform: translateY(-2px);
 }
 
 .category-icon-item.active {
     color: var(--primary-color);
-    border-bottom: 2px solid var(--primary-color);
+    background-color: #fff9e6;
+    font-weight: 700;
 }
 
 .category-icon-img {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
+    font-size: 1.2rem;
+    margin-bottom: 0.3rem;
     display: block;
 }
 
 .category-name {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;

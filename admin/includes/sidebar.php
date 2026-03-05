@@ -24,6 +24,11 @@
             </a>
         </li>
         <li class="sidebar-item">
+            <a href="logs.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'logs.php' ? 'active' : ''; ?>">
+                <i class="bi bi-journal-text"></i> Activity Logs
+            </a>
+        </li>
+        <li class="sidebar-item">
             <a href="settings.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : ''; ?>">
                 <i class="bi bi-gear-fill"></i> Settings
             </a>

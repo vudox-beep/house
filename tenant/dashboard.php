@@ -29,9 +29,9 @@ $active_rental = count($active_rentals) > 0 ? $active_rentals[0] : null;
 $next_due_dates = [];
 foreach ($active_rentals as $key => $r) {
     // Get last approved payment
-    $sql_last_paid = "SELECT month_year FROM rent_payments 
+    $sql_last_paid = "SELECT month_year, created_at, months_paid FROM rent_payments 
                       WHERE rental_id = :rid AND status = 'approved' 
-                      ORDER BY created_at DESC LIMIT 1";
+                      ORDER BY id DESC LIMIT 1";
     $stmt_last = $conn->prepare($sql_last_paid);
     $stmt_last->execute([':rid' => $r['id']]);
     $last_paid = $stmt_last->fetch(PDO::FETCH_ASSOC);
@@ -42,10 +42,14 @@ foreach ($active_rentals as $key => $r) {
         if ($last_paid) {
             $last_paid_date = DateTime::createFromFormat('!F Y', $last_paid['month_year']);
             if ($last_paid_date) {
-                $next_due = clone $last_paid_date;
-                $next_due->modify('+1 month');
+                // Determine months paid (default to 1 if column missing or 0)
+                $months_paid = isset($last_paid['months_paid']) && $last_paid['months_paid'] > 0 ? (int)$last_paid['months_paid'] : 1;
                 
-                // Adjust day to match start date, handling month end overflows
+                // Next due is +X months from the last paid month
+                $next_due = clone $last_paid_date;
+                $next_due->modify('+' . $months_paid . ' month');
+                
+                // Adjust day to match start date
                 $days_in_month = (int)$next_due->format('t');
                 $target_day = min($start_day, $days_in_month);
                 $next_due->setDate((int)$next_due->format('Y'), (int)$next_due->format('m'), $target_day);
@@ -65,9 +69,18 @@ foreach ($active_rentals as $key => $r) {
 
 // Determine the earliest "Next Due Date" for the dashboard summary
 $dashboard_due_date = '--';
+$dashboard_status_color = 'muted';
+
 if (!empty($next_due_dates)) {
     sort($next_due_dates);
-    $dashboard_due_date = date('M 01, Y', $next_due_dates[0]);
+    $earliest_timestamp = $next_due_dates[0];
+    $dashboard_due_date = date('M d, Y', $earliest_timestamp);
+    
+    if ($earliest_timestamp < time()) {
+        $dashboard_status_color = 'danger';
+    } else {
+        $dashboard_status_color = 'success';
+    }
 }
 
 // Fetch Last Payment
@@ -210,7 +223,12 @@ $recent_payments = $stmt_payments->fetchAll(PDO::FETCH_ASSOC);
                             <?php foreach ($recent_payments as $pay): ?>
                                 <tr>
                                     <td class="ps-4 fw-bold"><?php echo htmlspecialchars($pay['month_year']); ?></td>
-                                    <td class="text-primary fw-bold"><?php echo $pay['currency'] . ' ' . number_format($pay['amount']); ?></td>
+                                    <td class="text-primary fw-bold">
+                                        <?php echo $pay['currency'] . ' ' . number_format($pay['amount']); ?>
+                                        <?php if(isset($pay['months_paid']) && $pay['months_paid'] > 1): ?>
+                                            <span class="badge bg-info-subtle text-info-emphasis ms-1 rounded-pill" style="font-size: 0.65rem;"><?php echo $pay['months_paid']; ?> Mos</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <?php if($pay['proof_file']): ?>
                                             <a href="../<?php echo $pay['proof_file']; ?>" target="_blank" class="btn btn-sm btn-light border">

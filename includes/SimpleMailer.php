@@ -44,6 +44,10 @@ class SimpleMailer {
             $mail->addAddress($to);
             $mail->addReplyTo(SMTP_FROM, SMTP_FROM_NAME);
 
+            // Anti-Spam Headers
+            $mail->XMailer = ' '; // Suppress PHPMailer header
+            $mail->addCustomHeader('X-Entity-Ref-ID', uniqid()); // Unique ID for tracking
+
             // Content
             $mail->isHTML(true);
             $mail->Subject = $subject;
