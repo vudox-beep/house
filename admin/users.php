@@ -22,7 +22,22 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $userObj = new User();
         
-        if ($_POST['action'] === 'update_subscription') {
+        if ($_POST['action'] === 'verify_user') {
+            $user_id = $_POST['user_id'];
+            $status = $_POST['verification_status']; // 1 or 0
+            
+            try {
+                $stmt = $pdo->prepare("UPDATE users SET is_verified = :status WHERE id = :id");
+                if ($stmt->execute([':status' => $status, ':id' => $user_id])) {
+                    $success_msg = "User verification status updated.";
+                    $logger->log($_SESSION['user_id'], 'admin', 'verify_user', "Updated verification for user ID: $user_id to $status");
+                } else {
+                    $error_msg = "Failed to update verification status.";
+                }
+            } catch (PDOException $e) {
+                $error_msg = "Database Error: " . $e->getMessage();
+            }
+        } elseif ($_POST['action'] === 'update_subscription') {
             $user_id = $_POST['user_id'];
             $status = $_POST['subscription_status'];
             $expiry = $_POST['subscription_expiry'];
@@ -227,6 +242,20 @@ try {
                                                         title="Manage Subscription">
                                                     <i class="bi bi-credit-card"></i>
                                                 </button>
+                                                
+                                                <?php if(!$user['is_verified']): ?>
+                                                    <button class="btn btn-sm btn-outline-success border me-1" 
+                                                            onclick="verifyUser(<?php echo $user['id']; ?>, 1)"
+                                                            title="Approve / Verify Dealer">
+                                                        <i class="bi bi-patch-check"></i>
+                                                    </button>
+                                                <?php else: ?>
+                                                    <button class="btn btn-sm btn-outline-secondary border me-1" 
+                                                            onclick="verifyUser(<?php echo $user['id']; ?>, 0)"
+                                                            title="Revoke Verification">
+                                                        <i class="bi bi-x-circle"></i>
+                                                    </button>
+                                                <?php endif; ?>
                                             <?php endif; ?>
                                             
                                             <button class="btn btn-sm btn-light border me-1" 
@@ -392,8 +421,24 @@ try {
         <input type="hidden" name="ban_status" id="ban_status">
     </form>
 
+    <!-- Verification Form -->
+    <form id="verifyForm" method="POST" style="display: none;">
+        <input type="hidden" name="action" value="verify_user">
+        <input type="hidden" name="user_id" id="verify_user_id">
+        <input type="hidden" name="verification_status" id="verify_status">
+    </form>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+    function verifyUser(userId, status) {
+        const action = status === 1 ? 'Verify' : 'Unverify';
+        if (confirm(`Are you sure you want to ${action} this user?`)) {
+            document.getElementById('verify_user_id').value = userId;
+            document.getElementById('verify_status').value = status;
+            document.getElementById('verifyForm').submit();
+        }
+    }
+
     function viewUser(user) {
         // Basic Info
         document.getElementById('detail_name').innerText = user.name;

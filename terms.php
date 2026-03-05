@@ -47,8 +47,27 @@ require_once 'config/config.php';
                     <p>When you create an account with us, you must provide information that is accurate, complete, and current at all times. Failure to do so constitutes a breach of the Terms.</p>
                 </div>
 
+                <div class="card border-0 shadow-sm p-4 mb-4 border-start border-4 border-danger bg-danger-subtle">
+                    <h3 class="h5 fw-bold mb-3 text-danger"><i class="bi bi-shield-exclamation me-2"></i>CRITICAL WARNING: Tenant Safety & Payment Policy</h3>
+                    <p class="mb-3 fw-bold">To protect yourself from fraud, you strictly agree to the following:</p>
+                    <ul class="list-unstyled">
+                        <li class="mb-3 d-flex">
+                            <i class="bi bi-x-circle-fill text-danger me-2 mt-1"></i>
+                            <div><strong>DO NOT PAY IN ADVANCE:</strong> Never pay any money (rent, deposit, or holding fees) until you have physically visited the property and verified the identity of the landlord/agent.</div>
+                        </li>
+                        <li class="mb-3 d-flex">
+                            <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                            <div><strong>VERIFY FIRST:</strong> Inspect the property inside and out. Ensure the person showing the property has the keys and the authority to rent it.</div>
+                        </li>
+                        <li class="mb-0 d-flex">
+                            <i class="bi bi-info-circle-fill text-primary me-2 mt-1"></i>
+                            <div><strong>PLATFORM LIABILITY:</strong> <?php echo SITE_NAME; ?> is a listing platform. We do not own the properties. We are not liable for any losses incurred if you transfer money without proper due diligence.</div>
+                        </li>
+                    </ul>
+                </div>
+
                 <div class="card border-0 shadow-sm p-4 mb-4">
-                    <h3 class="h5 fw-bold mb-3 text-danger">3. Anti-Fraud & Fake Listings Policy</h3>
+                    <h3 class="h5 fw-bold mb-3">4. Anti-Fraud & Fake Listings Policy</h3>
                     <p>We are committed to maintaining a safe and trustworthy platform. Users agree to the following strictly enforced rules:</p>
                     <ul>
                         <li class="mb-2"><strong>Accurate Representation:</strong> All property listings must accurately represent the actual property. Photos must be current and truthful.</li>
@@ -75,7 +94,7 @@ require_once 'config/config.php';
                 </div>
 
                 <div class="card border-0 shadow-sm p-4 mb-4">
-                    <h3 class="h5 fw-bold mb-3">6. Changes to Terms</h3>
+                    <h3 class="h5 fw-bold mb-3">7. Changes to Terms</h3>
                     <p>We reserve the right, at our sole discretion, to modify or replace these Terms at any time. By continuing to access or use our Service after those revisions become effective, you agree to be bound by the revised terms.</p>
                 </div>
 

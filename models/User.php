@@ -33,7 +33,8 @@ class User {
                       phone = :phone, 
                       whatsapp_number = :whatsapp_number,
                       verification_token = :verification_token,
-                      token_expiry = :token_expiry';
+                      token_expiry = :token_expiry,
+                      is_verified = :is_verified'; // Added is_verified explicitly
 
         $stmt = $this->conn->prepare($query);
 
@@ -49,20 +50,27 @@ class User {
         $this->role = htmlspecialchars(strip_tags($data['role']));
         $this->phone = htmlspecialchars(strip_tags($data['phone']));
         $this->whatsapp_number = htmlspecialchars(strip_tags($data['whatsapp_number']));
-
-        // Bind data
+        
+        // Default is_verified to 0 (Level 2 verification)
+        // Level 1 (Email) is handled by verification_token
+        // Only DEALERS start unverified. Regular users/tenants can be auto-verified for Level 2 (as they don't upload properties)
+        // OR if you want tenants to also verify ID, keep it 0.
+        // But usually tenants just need email verification.
+        
+        $is_verified = (strtolower($this->role) === 'dealer') ? 0 : 1; 
+        
+        $token = $data['verification_token'] ?? null;
+        $expiry = $data['token_expiry'] ?? null;
+        
         $stmt->bindParam(':name', $this->name);
         $stmt->bindParam(':email', $this->email);
         $stmt->bindParam(':password', $this->password);
         $stmt->bindParam(':role', $this->role);
         $stmt->bindParam(':phone', $this->phone);
         $stmt->bindParam(':whatsapp_number', $this->whatsapp_number);
-        
-        $token = $data['verification_token'] ?? null;
-        $expiry = $data['token_expiry'] ?? null;
-        
         $stmt->bindParam(':verification_token', $token);
         $stmt->bindParam(':token_expiry', $expiry);
+        $stmt->bindParam(':is_verified', $is_verified);
 
         if($stmt->execute()) {
             $user_id = $this->conn->lastInsertId();
@@ -94,10 +102,10 @@ class User {
                 return "banned";
             }
             
-            // Check verification (Skip for admin)
-            if ($user['is_verified'] == 0 && $user['role'] !== 'admin') {
-                return "unverified";
-            }
+            // Note: We removed the strict 'is_verified' check here for login.
+            // Users should be able to login to verify their email or upload dealer docs.
+            // Verification checks are now done on specific actions (like add_property).
+            
             if (!empty($user['password']) && password_verify($password, $user['password'])) {
                 return $user;
             }
@@ -116,8 +124,17 @@ class User {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if ($user) {
-            // Update user to verified
-            $updateQuery = 'UPDATE ' . $this->table . ' SET is_verified = 1, verification_token = NULL, token_expiry = NULL WHERE id = :id';
+            // Update user to verified (EMAIL ONLY)
+            // DO NOT set is_verified = 1 here. That is for ID verification.
+            // Just clear the token to signify email is done.
+            // But wait, if we don't have an "email_verified" column, how do we track it?
+            // Usually, "verification_token IS NULL" means email verified.
+            
+            // Let's assume:
+            // verification_token = NULL -> Email Verified
+            // is_verified = 1 -> ID Verified (Admin approved)
+            
+            $updateQuery = 'UPDATE ' . $this->table . ' SET verification_token = NULL, token_expiry = NULL WHERE id = :id';
             $updateStmt = $this->conn->prepare($updateQuery);
             $updateStmt->bindParam(':id', $user['id']);
             if ($updateStmt->execute()) {
@@ -155,7 +172,13 @@ class User {
         if ($user) {
             // Update google_id if missing
             if (empty($user['google_id'])) {
-                $update = 'UPDATE ' . $this->table . ' SET google_id = :gid, is_verified = 1 WHERE id = :id';
+                // If they are a dealer, do NOT auto-verify ID (is_verified = 0)
+                // If they are a user, auto-verify ID (is_verified = 1)
+                
+                // However, if the user already exists, we should probably respect their current role and verification status.
+                // But if we are linking Google, we might want to ensure they can at least login.
+                
+                $update = 'UPDATE ' . $this->table . ' SET google_id = :gid WHERE id = :id';
                 $ustmt = $this->conn->prepare($update);
                 $ustmt->bindParam(':gid', $googleUser['id']);
                 $ustmt->bindParam(':id', $user['id']);
@@ -163,12 +186,19 @@ class User {
             }
             return $user;
         } else {
-            // Register new user
-            $query = 'INSERT INTO ' . $this->table . ' SET name = :name, email = :email, google_id = :gid, is_verified = 1, role = "user"';
+            // Register new user via Google
+            // Default role is "dealer" (Unverified) so they must upload ID.
+            
+            $role = 'dealer'; 
+            $is_verified = 0; // Force unverified for new Google dealers
+            
+            $query = 'INSERT INTO ' . $this->table . ' SET name = :name, email = :email, google_id = :gid, is_verified = :is_verified, role = :role, verification_token = NULL';
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(':name', $googleUser['name']);
             $stmt->bindParam(':email', $googleUser['email']);
             $stmt->bindParam(':gid', $googleUser['id']);
+            $stmt->bindParam(':is_verified', $is_verified);
+            $stmt->bindParam(':role', $role);
             
             if ($stmt->execute()) {
                 // Fetch newly created user

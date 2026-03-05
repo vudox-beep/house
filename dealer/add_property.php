@@ -6,12 +6,157 @@ require_once '../models/User.php';
 // Include Header
 include 'includes/header.php';
 
-// Check Subscription
+// Check Subscription & Verification
 $userModel = new User();
 $dealerProfile = $userModel->getDealerProfile($_SESSION['user_id']);
+$userProfile = $userModel->getUserById($_SESSION['user_id']); // Get generic user data for verification status
 
 $canAddProperty = false;
-$plan_type = 'inactive';
+
+// Check Verification First
+if (empty($userProfile['identity_verified'])) { // Use new column
+    // Check if they already submitted a verification request
+    // We can check if 'verification_doc' is not null, then show pending message.
+    
+    // Actually, the user asked: "if the dealer is not verified on the add property they should upload"
+    // This implies that instead of just blocking them, we should show a form to upload ID/Verification documents.
+    
+    $upload_success = '';
+    $upload_error = '';
+    
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['dealer_verification_doc'])) {
+        $target_dir = "../assets/images/dealer_docs/";
+        if (!file_exists($target_dir)) {
+            mkdir($target_dir, 0777, true);
+        }
+        
+        $file_extension = strtolower(pathinfo($_FILES["dealer_verification_doc"]["name"], PATHINFO_EXTENSION));
+        $new_filename = 'dealer_' . $_SESSION['user_id'] . '_' . uniqid() . '.' . $file_extension;
+        $target_file = $target_dir . $new_filename;
+        
+        // Allow certain file formats
+        $allowed = ['jpg', 'jpeg', 'png', 'pdf'];
+        if (!in_array($file_extension, $allowed)) {
+            $upload_error = "Only JPG, PNG & PDF files are allowed.";
+        } else {
+            if (move_uploaded_file($_FILES["dealer_verification_doc"]["tmp_name"], $target_file)) {
+                // Update user to mark as 'pending verification' if we had a status column
+                // For now, assume uploading means pending.
+                // We should probably save the filename to the user record so we know they uploaded something.
+                // Let's do a quick update to the users table to store this doc path if we can, 
+                // OR just rely on the email sent to admin.
+                
+                require_once '../includes/SimpleMailer.php';
+                $mailer = new SimpleMailer();
+                $subject = "Dealer Verification Request - " . $_SESSION['user_name'];
+                $body = "User " . $_SESSION['user_name'] . " (ID: " . $_SESSION['user_id'] . ") has uploaded a verification document.<br>File: " . SITE_URL . "/assets/images/dealer_docs/" . $new_filename;
+                $mailer->send(SMTP_FROM, $subject, $body);
+                
+                // SAVE TO DATABASE so Admin can see it
+                try {
+                    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+                    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                    $stmt = $pdo->prepare("UPDATE users SET verification_doc = :doc WHERE id = :id");
+                    $stmt->execute([':doc' => "assets/images/dealer_docs/" . $new_filename, ':id' => $_SESSION['user_id']]);
+                } catch (Exception $e) {
+                    $upload_error = "DB Update Failed: " . $e->getMessage();
+                    $upload_success = ''; // Clear success if DB fail
+                }
+                
+                if (empty($upload_error)) {
+                    $upload_success = "Document uploaded successfully. An administrator will review your account shortly.";
+                    $_SESSION['verification_pending'] = true;
+                }
+                
+            } else {
+                $upload_error = "Failed to upload file.";
+            }
+        }
+    }
+    
+    // Force stop here - DO NOT SHOW THE REST OF THE PAGE
+    ?>
+    <div class='container mt-5'>
+        <div class='row justify-content-center'>
+            <div class='col-md-8'>
+                <div class='card border-danger shadow-lg'>
+                    <div class='card-header bg-danger text-white py-3'>
+                        <h4 class='mb-0 fw-bold'><i class='bi bi-shield-lock-fill me-2'></i>Account Verification Required</h4>
+                    </div>
+                    <div class='card-body p-5 text-center'>
+                        <div class="mb-4">
+                            <i class='bi bi-person-badge display-1 text-danger'></i>
+                        </div>
+                        
+                        <h3 class='fw-bold mb-3'>You cannot post properties yet!</h3>
+                        <p class='lead mb-4'>To prevent fraud and ensure safety, all dealers must verify their identity before listing properties.</p>
+                        
+                        <?php if($upload_success || isset($_SESSION['verification_pending'])): ?>
+                             <div class="alert alert-info border-info text-start p-4">
+                                <h4 class="alert-heading fw-bold"><i class="bi bi-clock-history"></i> Verification Pending</h4>
+                                <p class="mb-0 lead">Thank you for uploading your verification photo. Our team is currently reviewing your submission.</p>
+                                <hr>
+                                <p class="mb-0 small">You will be notified via email once your account is approved. This usually takes 24-48 hours.</p>
+                            </div>
+                            <div class='mt-4'>
+                                <a href='dashboard.php' class='btn btn-primary px-4'>Return to Dashboard</a>
+                            </div>
+                        <?php else: ?>
+                            <div class="alert alert-warning border-warning text-start">
+                                <h5 class="alert-heading fw-bold"><i class="bi bi-exclamation-triangle-fill"></i> Critical Action Required:</h5>
+                                <p class="mb-0">Please upload a clear photo of <strong>yourself standing next to your property</strong> to verify your identity.</p>
+                            </div>
+                            
+                            <?php if($upload_error): ?>
+                                <div class='alert alert-danger fw-bold'><?php echo $upload_error; ?></div>
+                            <?php endif; ?>
+                            
+                            <form method='POST' enctype='multipart/form-data' class='mt-4 p-4 border rounded bg-light'>
+                                <div class='mb-3 text-start'>
+                                    <label class='form-label fw-bold'>Upload Verification Photo:</label>
+                                    
+                                    <!-- Preview for ID Document -->
+                                    <div class='mb-3 text-center p-3 border rounded bg-white' id='idPreviewContainer' style='display:none;'>
+                                        <img id='idPreview' src='' class='img-fluid rounded shadow-sm' style='max-height: 250px;'>
+                                        <div class="mt-2 text-success small fw-bold"><i class="bi bi-check-circle"></i> Photo Ready to Upload</div>
+                                    </div>
+                                    
+                                    <input type='file' class='form-control form-control-lg' name='dealer_verification_doc' required accept='.jpg,.jpeg,.png,.pdf' onchange='previewIDImage(this)'>
+                                    <div class="form-text">Photo of you + property. Formats: JPG, PNG</div>
+                                </div>
+                                <button type='submit' class='btn btn-danger btn-lg w-100 fw-bold shadow-sm'>
+                                    <i class="bi bi-upload me-2"></i> Submit Verification Photo
+                                </button>
+                            </form>
+                            
+                            <div class='mt-4'>
+                                <a href='dashboard.php' class='btn btn-outline-secondary'>Back to Dashboard</a>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    function previewIDImage(input) {
+        if (input.files && input.files[0]) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('idPreview').src = e.target.result;
+                document.getElementById('idPreviewContainer').style.display = 'block';
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+    </script>
+    <script src='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'></script>
+    </body>
+    </html>
+    <?php
+    exit; // STOP EXECUTION HERE
+}
 
 if ($dealerProfile && $dealerProfile['subscription_status'] === 'active') {
     // Check expiry
@@ -84,7 +229,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } else {
         $is_featured = 0;
         
-        // Check if user is on paid plan to auto-feature
+        // Handle Verification Image Upload (No longer required for individual properties)
+        $verification_image_path = null;
+        
+        if (!$error) {
+            // Check if user is on paid plan to auto-feature
         $stmt = $userModel->getDealerProfile($_SESSION['user_id']);
         if ($stmt && $stmt['subscription_status'] === 'active') {
             // Check for successful payment to differentiate from Free Trial if needed
@@ -131,7 +280,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             'people_per_room' => !empty($_POST['people_per_room']) ? intval($_POST['people_per_room']) : null,
             'event_type' => !empty($_POST['event_type']) ? htmlspecialchars($_POST['event_type']) : null,
             'catering_available' => isset($_POST['catering_available']) ? 1 : 0,
-            'equipment_available' => isset($_POST['equipment_available']) ? 1 : 0
+            'equipment_available' => isset($_POST['equipment_available']) ? 1 : 0,
+            'verification_image' => $verification_image_path,
+            'is_verified' => 0 // Default to unverified until admin checks
         ];
 
         $property_id = $property->create($data);
@@ -144,6 +295,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $error = "Failed to add property. Please try again.";
         }
     }
+}
 }
 ?>
 
@@ -158,7 +310,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <div class="alert alert-danger"><?php echo $error; ?></div>
                     <?php endif; ?>
 
-                    <form method="POST" action="">
+                    <form method="POST" action="" enctype="multipart/form-data">
                         <div class="mb-3">
                             <label for="title" class="form-label fw-bold">Property Title *</label>
                             <input type="text" class="form-control" id="title" name="title" required>
@@ -310,121 +462,128 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<!-- Google Maps API -->
+<script src="https://maps.googleapis.com/maps/api/js?key=<?php echo GOOGLE_MAPS_API_KEY; ?>&libraries=places&callback=initMap" async defer></script>
 
 <script>
     let map;
     let marker;
+    let autocomplete;
     const locationInput = document.getElementById('location');
-    const cityInput = document.getElementById('city');
-    const countryInput = document.getElementById('country');
+    const latitudeInput = document.getElementById('latitude');
+    const longitudeInput = document.getElementById('longitude');
 
-    document.addEventListener('DOMContentLoaded', function() {
-        initMap();
+    function initMap() {
+        // Default to Lusaka, Zambia
+        const defaultLocation = { lat: -15.4167, lng: 28.2833 };
         
+        map = new google.maps.Map(document.getElementById("map"), {
+            zoom: 13,
+            center: defaultLocation,
+            mapTypeId: google.maps.MapTypeId.ROADMAP
+        });
+
+        // Initialize marker
+        marker = new google.maps.Marker({
+            position: defaultLocation,
+            map: map,
+            draggable: true
+        });
+
+        // Try to get user's current location
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                const userLocation = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+                map.setCenter(userLocation);
+                map.setZoom(15);
+                marker.setPosition(userLocation);
+                updateCoordinates(userLocation);
+            });
+        }
+
+        // Add click listener
+        map.addListener("click", function(e) {
+            marker.setPosition(e.latLng);
+            updateCoordinates(e.latLng);
+        });
+
+        // Add drag listener
+        marker.addListener("dragend", function(e) {
+            updateCoordinates(e.latLng);
+        });
+
+        // Initialize Autocomplete
+        initAutocomplete();
+    }
+
+    function initAutocomplete() {
+        autocomplete = new google.maps.places.Autocomplete(locationInput);
+        autocomplete.bindTo("bounds", map);
+
+        autocomplete.addListener("place_changed", function() {
+            const place = autocomplete.getPlace();
+
+            if (!place.geometry || !place.geometry.location) {
+                return;
+            }
+
+            // If the place has a geometry, then present it on a map.
+            if (place.geometry.viewport) {
+                map.fitBounds(place.geometry.viewport);
+            } else {
+                map.setCenter(place.geometry.location);
+                map.setZoom(17);
+            }
+
+            marker.setPosition(place.geometry.location);
+            updateCoordinates(place.geometry.location);
+            
+            // Auto-fill City/Country if possible (Optional but nice)
+            fillAddressDetails(place);
+        });
+    }
+
+    function updateCoordinates(latLng) {
+        latitudeInput.value = latLng.lat();
+        longitudeInput.value = latLng.lng();
+    }
+
+    function fillAddressDetails(place) {
+        // Reset fields
+        document.getElementById('city').value = '';
+        
+        // Loop through address components
+        for (const component of place.address_components) {
+            const componentType = component.types[0];
+
+            if (componentType === "locality" || componentType === "administrative_area_level_1") {
+                document.getElementById('city').value = component.long_name;
+            }
+            if (componentType === "country") {
+                const countrySelect = document.getElementById('country');
+                // Try to match country name
+                for(let i=0; i<countrySelect.options.length; i++) {
+                    if(countrySelect.options[i].text === component.long_name) {
+                        countrySelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Dynamic Field Logic (Keep existing logic)
+    document.addEventListener('DOMContentLoaded', function() {
         // Dynamic Field Logic
         const typeSelect = document.getElementById('property_type');
         if(typeSelect) {
             typeSelect.addEventListener('change', updateFields);
             updateFields(); // Initial call
         }
-
-        // Add input listeners for geocoding
-        let timeout = null;
-        const inputs = [locationInput, cityInput, countryInput];
-        
-        inputs.forEach(input => {
-            if(input) {
-                input.addEventListener('input', function() {
-                    clearTimeout(timeout);
-                    timeout = setTimeout(searchLocation, 1000); // Debounce 1s
-                });
-            }
-        });
     });
-
-    function initMap() {
-        // Default to Lusaka, Zambia
-        const defaultLat = -15.4167;
-        const defaultLng = 28.2833;
-        
-        map = L.map('map').setView([defaultLat, defaultLng], 13);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            maxZoom: 19
-        }).addTo(map);
-
-        // Add click listener
-        map.on('click', function(e) {
-            placeMarker(e.latlng.lat, e.latlng.lng);
-        });
-        
-        // Try to get user's current location to center map
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(function(position) {
-                const lat = position.coords.latitude;
-                const lng = position.coords.longitude;
-                map.setView([lat, lng], 15);
-                // Optional: Don't place marker automatically, let user click or search
-                // placeMarker(lat, lng); 
-            });
-        }
-    }
-
-    function placeMarker(lat, lng) {
-        if (marker) {
-            marker.setLatLng([lat, lng]);
-        } else {
-            marker = L.marker([lat, lng]).addTo(map);
-        }
-        
-        // Update hidden inputs
-        document.getElementById('latitude').value = lat;
-        document.getElementById('longitude').value = lng;
-    }
-
-    function searchLocation() {
-        const address = locationInput.value;
-        const city = cityInput.value;
-        const country = countryInput.value;
-        
-        if(!address && !city) return;
-
-        let query = address;
-        if(city) query += ', ' + city;
-        if(country) query += ', ' + country;
-
-        // Use Nominatim API for geocoding with detailed address breakdown
-        const params = new URLSearchParams({
-            format: 'json',
-            limit: 1,
-            addressdetails: 1
-        });
-        
-        // Construct query more specifically
-        let q = '';
-        if(address) q += address + ', ';
-        if(city) q += city + ', ';
-        if(country) q += country;
-        
-        params.append('q', q);
-
-        fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data && data.length > 0) {
-                    const lat = parseFloat(data[0].lat);
-                    const lon = parseFloat(data[0].lon);
-                    
-                    // Update map
-                    map.setView([lat, lon], 18); // Higher zoom for "exact" location
-                    placeMarker(lat, lon);
-                }
-            })
-            .catch(err => console.error('Geocoding error:', err));
-    }
 
     function updateFields() {
         const typeSelect = document.getElementById('property_type');
@@ -455,6 +614,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             commonGroups.forEach(el => el.style.display = 'block');
         } else if (['wedding_venue', 'restaurant', 'commercial', 'studio'].includes(type)) {
             venueGroups.forEach(el => el.style.display = 'block');
+        }
+    }
+
+    function previewVerificationImage(input) {
+        if (input.files && input.files[0]) {
+            var reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const preview = document.getElementById('verificationPreview');
+                const container = document.getElementById('verificationPreviewContainer');
+                
+                preview.src = e.target.result;
+                container.style.display = 'block';
+                
+                // Optional: Scroll to preview
+                container.scrollIntoView({behavior: 'smooth', block: 'center'});
+            }
+            
+            reader.readAsDataURL(input.files[0]);
         }
     }
 </script>

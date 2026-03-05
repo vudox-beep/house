@@ -19,6 +19,16 @@
             </a>
         </li>
         <li class="sidebar-item">
+            <a href="verify_dealers.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'verify_dealers.php' ? 'active' : ''; ?>">
+                <i class="bi bi-shield-check"></i> Verify Dealers
+            </a>
+        </li>
+        <li class="sidebar-item">
+            <a href="properties.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'properties.php' ? 'active' : ''; ?>">
+                <i class="bi bi-houses-fill"></i> Properties
+            </a>
+        </li>
+        <li class="sidebar-item">
             <a href="reports.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'reports.php' ? 'active' : ''; ?>">
                 <i class="bi bi-graph-up-arrow"></i> Reports
             </a>
@@ -31,11 +41,6 @@
         <li class="sidebar-item">
             <a href="settings.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : ''; ?>">
                 <i class="bi bi-gear-fill"></i> Settings
-            </a>
-        </li>
-        <li class="sidebar-item">
-            <a href="properties.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'properties.php' ? 'active' : ''; ?>">
-                <i class="bi bi-houses-fill"></i> Properties
             </a>
         </li>
         <li class="sidebar-item mt-5">

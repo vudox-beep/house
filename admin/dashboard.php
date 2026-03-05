@@ -29,6 +29,10 @@ try {
     $stmt = $pdo->query("SELECT COUNT(*) FROM properties");
     $total_properties = $stmt->fetchColumn();
 
+    // Get Pending Verifications (New)
+    $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'dealer' AND identity_verified = 0 AND verification_doc IS NOT NULL");
+    $pending_verifications = $stmt->fetchColumn();
+
     // Get Recent Transactions with User Details
     $recent_transactions = [];
     $transactions_exist = $pdo->query("SHOW TABLES LIKE 'transactions'")->rowCount() > 0;
@@ -164,6 +168,18 @@ try {
 
         <!-- Stats Cards -->
         <div class="row g-4 mb-5">
+            <?php if ($pending_verifications > 0): ?>
+            <div class="col-md-12">
+                <div class="alert alert-warning border-warning shadow-sm d-flex justify-content-between align-items-center p-4">
+                    <div>
+                        <h4 class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill me-2"></i> Pending Dealer Verifications</h4>
+                        <p class="mb-0 text-dark"><?php echo $pending_verifications; ?> dealer(s) are waiting for identity approval.</p>
+                    </div>
+                    <a href="verify_dealers.php" class="btn btn-warning fw-bold text-dark px-4">Review Requests</a>
+                </div>
+            </div>
+            <?php endif; ?>
+            
             <div class="col-md-3">
                 <div class="stats-card p-4 rounded shadow-sm bg-white border-start border-4 border-primary">
                     <div class="d-flex justify-content-between align-items-center">
@@ -268,7 +284,10 @@ try {
                                                 <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2">Failed</span>
                                             <?php endif; ?>
                                         </td>
-                                        <td class="text-muted small"><?php echo date('M d, H:i', strtotime($txn['created_at'])); ?></td>
+                                        <td class="text-muted small">
+                                            <div><?php echo date('M d, Y', strtotime($txn['created_at'])); ?></div>
+                                            <div class="text-xs opacity-75"><?php echo date('H:i A', strtotime($txn['created_at'])); ?></div>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>

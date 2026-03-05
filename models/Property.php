@@ -59,7 +59,9 @@ class Property {
                       people_per_room = :people_per_room,
                       event_type = :event_type,
                       catering_available = :catering_available,
-                      equipment_available = :equipment_available';
+                      equipment_available = :equipment_available,
+                      verification_image = :verification_image,
+                      is_verified = :is_verified';
 
         $stmt = $this->conn->prepare($query);
 
@@ -89,6 +91,8 @@ class Property {
         $stmt->bindParam(':event_type', $data['event_type']);
         $stmt->bindParam(':catering_available', $data['catering_available']);
         $stmt->bindParam(':equipment_available', $data['equipment_available']);
+        $stmt->bindParam(':verification_image', $data['verification_image']);
+        $stmt->bindParam(':is_verified', $data['is_verified']);
 
         if($stmt->execute()) {
             return $this->conn->lastInsertId();

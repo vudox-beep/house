@@ -6,6 +6,206 @@ require_once '../models/User.php';
 // Include Header (which includes sidebar and session check)
 include 'includes/header.php';
 
+// Check Verification (Blocking Screen on Dashboard too)
+$userModel = new User();
+$userProfile = $userModel->getUserById($_SESSION['user_id']); 
+
+// Check Identity Verification First (Blocking Screen)
+if (empty($userProfile['identity_verified'])) {
+    // Show same blocking screen
+    
+    // Check if doc uploaded
+    $upload_success = '';
+    $upload_error = '';
+    $is_pending = false;
+    
+    if (!empty($userProfile['verification_doc'])) {
+        $is_pending = true;
+    }
+    
+    // Handle upload here too
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['dealer_verification_doc'])) {
+        $target_dir = "../assets/images/dealer_docs/";
+        if (!file_exists($target_dir)) {
+            mkdir($target_dir, 0777, true);
+        }
+        $file_extension = strtolower(pathinfo($_FILES["dealer_verification_doc"]["name"], PATHINFO_EXTENSION));
+        $new_filename = 'dealer_' . $_SESSION['user_id'] . '_' . uniqid() . '.' . $file_extension;
+        $target_file = $target_dir . $new_filename;
+        $allowed = ['jpg', 'jpeg', 'png', 'pdf'];
+        if (!in_array($file_extension, $allowed)) {
+            $upload_error = "Only JPG, PNG & PDF files are allowed.";
+        } else {
+            if (move_uploaded_file($_FILES["dealer_verification_doc"]["tmp_name"], $target_file)) {
+                require_once '../includes/SimpleMailer.php';
+                $mailer = new SimpleMailer();
+                $subject = "Dealer Verification Request - " . $_SESSION['user_name'];
+                $body = "User " . $_SESSION['user_name'] . " (ID: " . $_SESSION['user_id'] . ") has uploaded a verification document.<br>File: " . SITE_URL . "/assets/images/dealer_docs/" . $new_filename;
+                $mailer->send(SMTP_FROM, $subject, $body);
+                
+                try {
+                    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+                    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                    $stmt = $pdo->prepare("UPDATE users SET verification_doc = :doc WHERE id = :id");
+                    $stmt->execute([':doc' => "assets/images/dealer_docs/" . $new_filename, ':id' => $_SESSION['user_id']]);
+                } catch (Exception $e) {}
+                
+                $upload_success = "Document uploaded successfully.";
+                $is_pending = true;
+            } else {
+                $upload_error = "Failed to upload file.";
+            }
+        }
+    }
+
+    echo "
+    <div class='container mt-5'>
+        <div class='row justify-content-center'>
+            <div class='col-md-8'>
+                <div class='card border-danger shadow-lg'>
+                    <div class='card-header bg-danger text-white py-3'>
+                        <h4 class='mb-0 fw-bold'><i class='bi bi-shield-lock-fill me-2'></i>Account Verification Required</h4>
+                    </div>
+                    <div class='card-body p-5 text-center'>
+                        <div class='mb-4'>
+                            <i class='bi bi-person-badge display-1 text-danger'></i>
+                        </div>
+                        <h3 class='fw-bold mb-3'>Welcome to Your Dashboard!</h3>
+                        <p class='lead mb-4'>Before you can manage properties or view stats, you must verify your identity.</p>
+                        
+                        " . ($is_pending ? "
+                             <div class='alert alert-info border-info text-start p-4'>
+                                <h4 class='alert-heading fw-bold'><i class='bi bi-clock-history'></i> Verification Pending</h4>
+                                <p class='mb-0 lead'>Your verification photo is under review. Please wait for approval.</p>
+                            </div>
+                        " : "
+                            <div class='alert alert-warning border-warning text-start'>
+                                <h5 class='alert-heading fw-bold'><i class='bi bi-exclamation-triangle-fill'></i> Action Required:</h5>
+                                <p class='mb-0'>Please upload a photo of <strong>yourself standing next to your property</strong> to proceed.</p>
+                            </div>
+                            
+                            " . ($upload_error ? "<div class='alert alert-danger'>$upload_error</div>" : "") . "
+                            
+                            <form method='POST' enctype='multipart/form-data' class='mt-4 p-4 border rounded bg-light'>
+                                <div class='mb-3 text-start'>
+                                    <label class='form-label fw-bold'>Upload Verification Photo</label>
+                                    <input type='file' class='form-control' name='dealer_verification_doc' required accept='.jpg,.jpeg,.png,.pdf'>
+                                    <div class='form-text'>Photo of you + property. Formats: JPG, PNG</div>
+                                </div>
+                                <button type='submit' class='btn btn-danger w-100 fw-bold'>Submit Verification Photo</button>
+                            </form>
+                        ") . "
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'></script>
+    </body>
+    </html>";
+    exit;
+}
+
+// Fetch Dealer StatsVerification (Blocking Screen on Dashboard too)
+$userModel = new User();
+$userProfile = $userModel->getUserById($_SESSION['user_id']); 
+
+// Check Identity Verification First (Blocking Screen)
+if (empty($userProfile['identity_verified'])) {
+    // Show same blocking screen
+    
+    // Check if doc uploaded
+    $upload_success = '';
+    $upload_error = '';
+    $is_pending = false;
+    
+    if (!empty($userProfile['verification_doc'])) {
+        $is_pending = true;
+    }
+    
+    // Handle upload here too
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['dealer_verification_doc'])) {
+        $target_dir = "../assets/images/dealer_docs/";
+        if (!file_exists($target_dir)) {
+            mkdir($target_dir, 0777, true);
+        }
+        $file_extension = strtolower(pathinfo($_FILES["dealer_verification_doc"]["name"], PATHINFO_EXTENSION));
+        $new_filename = 'dealer_' . $_SESSION['user_id'] . '_' . uniqid() . '.' . $file_extension;
+        $target_file = $target_dir . $new_filename;
+        $allowed = ['jpg', 'jpeg', 'png', 'pdf'];
+        if (!in_array($file_extension, $allowed)) {
+            $upload_error = "Only JPG, PNG & PDF files are allowed.";
+        } else {
+            if (move_uploaded_file($_FILES["dealer_verification_doc"]["tmp_name"], $target_file)) {
+                require_once '../includes/SimpleMailer.php';
+                $mailer = new SimpleMailer();
+                $subject = "Dealer Verification Request - " . $_SESSION['user_name'];
+                $body = "User " . $_SESSION['user_name'] . " (ID: " . $_SESSION['user_id'] . ") has uploaded a verification document.<br>File: " . SITE_URL . "/assets/images/dealer_docs/" . $new_filename;
+                $mailer->send(SMTP_FROM, $subject, $body);
+                
+                try {
+                    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+                    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                    $stmt = $pdo->prepare("UPDATE users SET verification_doc = :doc WHERE id = :id");
+                    $stmt->execute([':doc' => "assets/images/dealer_docs/" . $new_filename, ':id' => $_SESSION['user_id']]);
+                } catch (Exception $e) {}
+                
+                $upload_success = "Document uploaded successfully.";
+                $is_pending = true;
+            } else {
+                $upload_error = "Failed to upload file.";
+            }
+        }
+    }
+
+    echo "
+    <div class='container mt-5'>
+        <div class='row justify-content-center'>
+            <div class='col-md-8'>
+                <div class='card border-danger shadow-lg'>
+                    <div class='card-header bg-danger text-white py-3'>
+                        <h4 class='mb-0 fw-bold'><i class='bi bi-shield-lock-fill me-2'></i>Account Verification Required</h4>
+                    </div>
+                    <div class='card-body p-5 text-center'>
+                        <div class='mb-4'>
+                            <i class='bi bi-person-badge display-1 text-danger'></i>
+                        </div>
+                        <h3 class='fw-bold mb-3'>Welcome to Your Dashboard!</h3>
+                        <p class='lead mb-4'>Before you can manage properties or view stats, you must verify your identity.</p>
+                        
+                        " . ($is_pending ? "
+                             <div class='alert alert-info border-info text-start p-4'>
+                                <h4 class='alert-heading fw-bold'><i class='bi bi-clock-history'></i> Verification Pending</h4>
+                                <p class='mb-0 lead'>Your verification photo is under review. Please wait for approval.</p>
+                            </div>
+                        " : "
+                            <div class='alert alert-warning border-warning text-start'>
+                                <h5 class='alert-heading fw-bold'><i class='bi bi-exclamation-triangle-fill'></i> Action Required:</h5>
+                                <p class='mb-0'>Please upload a photo of <strong>yourself standing next to your property</strong> to proceed.</p>
+                            </div>
+                            
+                            " . ($upload_error ? "<div class='alert alert-danger'>$upload_error</div>" : "") . "
+                            
+                            <form method='POST' enctype='multipart/form-data' class='mt-4 p-4 border rounded bg-light'>
+                                <div class='mb-3 text-start'>
+                                    <label class='form-label fw-bold'>Upload Verification Photo</label>
+                                    <input type='file' class='form-control' name='dealer_verification_doc' required accept='.jpg,.jpeg,.png,.pdf'>
+                                    <div class='form-text'>Photo of you + property. Formats: JPG, PNG</div>
+                                </div>
+                                <button type='submit' class='btn btn-danger w-100 fw-bold'>Submit Verification Photo</button>
+                            </form>
+                        ") . "
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'></script>
+    </body>
+    </html>";
+    exit;
+}
+
 // Fetch Dealer Stats
 try {
     $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);

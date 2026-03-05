@@ -561,6 +561,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                     <?php endif; ?>
                     
                     <hr class="my-4">
+                    
+                    <div class="alert alert-danger bg-danger-subtle border-danger small mb-4">
+                        <div class="d-flex">
+                            <i class="bi bi-shield-exclamation text-danger fs-5 me-2"></i>
+                            <div>
+                                <strong>Safety Warning:</strong> Do NOT pay any money (rent or deposit) before visiting this property and meeting the landlord in person.
+                            </div>
+                        </div>
+                    </div>
+
                     <h6 class="fw-bold mb-3">Send an enquiry</h6>
                     <form method="POST" action="property_details.php?id=<?php echo $raw_id; ?>">
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
