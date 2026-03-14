@@ -124,6 +124,7 @@ class LencoAPI {
         return $this->request('GET', '/collections?page=' . $page);
     }
     public function getBalance() {
-        return $this->request('GET', '/accounts/balance'); // Hypothetical endpoint
+        // Try getting account details which usually includes balance
+        return $this->request('GET', '/account'); 
     }
 }

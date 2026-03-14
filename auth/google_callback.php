@@ -1,6 +1,7 @@
 <?php
 require_once '../config/config.php';
 require_once '../models/User.php';
+require_once '../includes/ActivityLogger.php';
 
 if (isset($_GET['code'])) {
     $code = $_GET['code'];
@@ -84,6 +85,10 @@ if (isset($_GET['code'])) {
                 $_SESSION['user_role'] = $user['role'];
                 $_SESSION['user_name'] = $user['name'];
                 
+                // Log Login
+                $logger = new ActivityLogger();
+                $logger->log($user['id'], $user['role'], 'login', 'User logged in via Google');
+
                 if ($user['role'] == 'dealer') {
                     header("Location: ../dealer/dashboard.php");
                 } elseif ($user['role'] == 'admin') {

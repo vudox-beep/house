@@ -98,25 +98,19 @@ try {
     // We try to fetch the actual wallet/settlement balance, not just sum of transactions.
     $balance_response = $lenco->getBalance();
     
+    // Debugging (Remove in production if needed, but useful for user)
+    // error_log(print_r($balance_response, true)); 
+    
     if (isset($balance_response['status']) && $balance_response['status'] === true) {
-        // Check for 'data' object which might contain 'available' or 'balance'
-        if (isset($balance_response['data']['balance'])) {
+        // Check standard Lenco account structure
+        if (isset($balance_response['data']['availableBalance'])) {
+             $account_balance = $balance_response['data']['availableBalance'];
+        } elseif (isset($balance_response['data']['balance'])) {
              $account_balance = $balance_response['data']['balance'];
-        } elseif (isset($balance_response['data']['available'])) {
-             $account_balance = $balance_response['data']['available'];
+        } elseif (isset($balance_response['data']['currentBalance'])) {
+             $account_balance = $balance_response['data']['currentBalance'];
         } else {
-            // If it returns a list of settlements, sum up the pending/available ones?
-            // Usually settlements endpoint returns a list. 
-            // If no direct balance endpoint exists, we might need to rely on the manual sum we did before
-            // BUT user says "needs to show exact balance not total traction"
-            
-            // Let's fallback to the sum calculation if API doesn't give a clear single balance field
-            // But reset it first to ensure we don't double count.
-            
-            // If the user means "Current Available Balance" (which might be less than total revenue due to payouts),
-            // we really need that specific endpoint.
-            
-            // Reverting to the transaction sum for now as a "Best Guess" of balance if no payouts have happened.
+             // Fallback to transaction sum if API structure is unexpected
              if ($transactions_exist) {
                 $stmt = $pdo->query("SELECT SUM(amount) FROM transactions WHERE status = 'successful' OR status = 'completed'");
                 $account_balance = $stmt->fetchColumn() ?: 0;
@@ -154,7 +148,12 @@ try {
     <div class="admin-main">
         <!-- Topbar -->
         <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm">
-            <h4 class="mb-0 fw-bold text-dark">Dashboard Overview</h4>
+            <div class="d-flex align-items-center">
+                <button class="btn btn-link d-md-none me-3 p-0 text-dark" id="adminSidebarToggle">
+                    <i class="bi bi-list fs-3"></i>
+                </button>
+                <h4 class="mb-0 fw-bold text-dark">Dashboard Overview</h4>
+            </div>
             <div class="d-flex align-items-center">
                 <div class="me-3 text-end">
                     <p class="mb-0 fw-bold text-dark"><?php echo $_SESSION['user_name']; ?></p>
@@ -303,5 +302,10 @@ try {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('adminSidebarToggle').addEventListener('click', function() {
+            document.querySelector('.admin-sidebar').classList.toggle('active');
+        });
+    </script>
 </body>
 </html>

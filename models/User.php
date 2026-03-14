@@ -62,15 +62,15 @@ class User {
         $token = $data['verification_token'] ?? null;
         $expiry = $data['token_expiry'] ?? null;
         
-        $stmt->bindParam(':name', $this->name);
-        $stmt->bindParam(':email', $this->email);
-        $stmt->bindParam(':password', $this->password);
-        $stmt->bindParam(':role', $this->role);
-        $stmt->bindParam(':phone', $this->phone);
-        $stmt->bindParam(':whatsapp_number', $this->whatsapp_number);
-        $stmt->bindParam(':verification_token', $token);
-        $stmt->bindParam(':token_expiry', $expiry);
-        $stmt->bindParam(':is_verified', $is_verified);
+        $stmt->bindValue(':name', $this->name);
+        $stmt->bindValue(':email', $this->email);
+        $stmt->bindValue(':password', $this->password);
+        $stmt->bindValue(':role', $this->role);
+        $stmt->bindValue(':phone', $this->phone);
+        $stmt->bindValue(':whatsapp_number', $this->whatsapp_number);
+        $stmt->bindValue(':verification_token', $token);
+        $stmt->bindValue(':token_expiry', $expiry);
+        $stmt->bindValue(':is_verified', $is_verified);
 
         if($stmt->execute()) {
             $user_id = $this->conn->lastInsertId();
@@ -97,16 +97,17 @@ class User {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if($user) {
-            // Check if banned
-            if ($user['is_banned'] == 1 && $user['role'] !== 'admin') {
-                return "banned";
-            }
-            
-            // Note: We removed the strict 'is_verified' check here for login.
-            // Users should be able to login to verify their email or upload dealer docs.
-            // Verification checks are now done on specific actions (like add_property).
-            
             if (!empty($user['password']) && password_verify($password, $user['password'])) {
+                // Check if banned
+                if ($user['is_banned'] == 1 && $user['role'] !== 'admin') {
+                    return "banned";
+                }
+
+                // Check if email verified (verification_token should be NULL)
+                if (!empty($user['verification_token'])) {
+                    return "unverified";
+                }
+
                 return $user;
             }
         }

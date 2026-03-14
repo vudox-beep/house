@@ -2,6 +2,7 @@
 require_once '../config/config.php';
 require_once '../models/User.php';
 require_once '../includes/SimpleMailer.php';
+require_once '../includes/ActivityLogger.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -62,6 +63,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $_SESSION['user_name'] = $googleUser['name'];
         $_SESSION['profile_image'] = null; // Or fetch from Google if available
         
+        // Log Registration
+        $logger = new ActivityLogger();
+        $logger->log($user_id, $role, 'register', 'User registered via Google');
+
         unset($_SESSION['google_signup_data']); // Clear temp data
         
         if ($role == 'dealer') {

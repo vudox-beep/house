@@ -121,7 +121,12 @@ $recent_payments = $stmt_payments->fetchAll(PDO::FETCH_ASSOC);
                         <?php foreach($active_rentals as $rental): ?>
                             <div>
                                 <h5 class="text-truncate mb-0" style="max-width: 150px;"><?php echo htmlspecialchars($rental['title']); ?></h5>
-                                <small class="text-muted"><?php echo htmlspecialchars($rental['location']); ?></small>
+                                <?php if(!empty($rental['room_number'])): ?>
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill mb-1 mt-1">
+                                        <?php echo htmlspecialchars($rental['room_number']); ?>
+                                    </span>
+                                <?php endif; ?>
+                                <small class="text-muted d-block"><?php echo htmlspecialchars($rental['location']); ?></small>
                             </div>
                         <?php endforeach; ?>
                         </div>

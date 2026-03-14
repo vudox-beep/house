@@ -120,4 +120,3 @@ function set_security_headers() {
 
 // Apply headers globally
 set_security_headers();
-?>

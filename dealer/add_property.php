@@ -14,7 +14,7 @@ $userProfile = $userModel->getUserById($_SESSION['user_id']); // Get generic use
 $canAddProperty = false;
 
 // Check Verification First
-if (empty($userProfile['identity_verified'])) { // Use new column
+if ($userProfile['identity_verified'] != 1) { // Check if not verified (0=pending, 2=rejected)
     // Check if they already submitted a verification request
     // We can check if 'verification_doc' is not null, then show pending message.
     
@@ -56,7 +56,8 @@ if (empty($userProfile['identity_verified'])) { // Use new column
                 try {
                     $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
                     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-                    $stmt = $pdo->prepare("UPDATE users SET verification_doc = :doc WHERE id = :id");
+                    // Reset identity_verified to 0 (Pending) if they re-upload
+                    $stmt = $pdo->prepare("UPDATE users SET verification_doc = :doc, identity_verified = 0 WHERE id = :id");
                     $stmt->execute([':doc' => "assets/images/dealer_docs/" . $new_filename, ':id' => $_SESSION['user_id']]);
                 } catch (Exception $e) {
                     $upload_error = "DB Update Failed: " . $e->getMessage();
@@ -74,9 +75,70 @@ if (empty($userProfile['identity_verified'])) { // Use new column
         }
     }
     
+    // Determine display state
+    $is_rejected = ($userProfile['identity_verified'] == 2);
+    $is_pending = false;
+
+    // If we just uploaded successfully, it is pending, not rejected (locally)
+    if ($upload_success) {
+        $is_rejected = false;
+        $is_pending = true;
+    } elseif ($userProfile['identity_verified'] == 0 && (isset($_SESSION['verification_pending']) || !empty($userProfile['verification_doc']))) {
+        // If status is 0 AND (session pending OR doc exists), show pending
+        $is_pending = true;
+    }
+    
     // Force stop here - DO NOT SHOW THE REST OF THE PAGE
     ?>
     <div class='container mt-5'>
+        <!-- Verification Progress Steps -->
+        <div class="row justify-content-center mb-4">
+            <div class="col-md-8">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-center justify-content-between position-relative">
+                            <!-- Progress Bar Background -->
+                            <div class="position-absolute top-50 start-0 w-100 bg-light rounded" style="height: 4px; z-index: 0;"></div>
+                            <div class="position-absolute top-50 start-0 bg-success rounded" style="height: 4px; width: 50%; z-index: 0;"></div>
+
+                            <!-- Step 1: Email -->
+                            <div class="d-flex flex-column align-items-center position-relative" style="z-index: 1;">
+                                <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center shadow-sm" style="width: 40px; height: 40px;">
+                                    <i class="bi bi-check-lg"></i>
+                                </div>
+                                <div class="mt-2 text-center">
+                                    <small class="fw-bold text-success">Phase 1</small>
+                                    <div class="small text-muted">Email Verified</div>
+                                </div>
+                            </div>
+
+                            <!-- Step 2: Identity -->
+                            <div class="d-flex flex-column align-items-center position-relative" style="z-index: 1;">
+                                <div class="rounded-circle bg-white border border-2 border-primary text-primary d-flex align-items-center justify-content-center shadow-sm" style="width: 40px; height: 40px;">
+                                    <span class="fw-bold">2</span>
+                                </div>
+                                <div class="mt-2 text-center">
+                                    <small class="fw-bold text-primary">Phase 2</small>
+                                    <div class="small text-muted">Identity Verification</div>
+                                </div>
+                            </div>
+
+                            <!-- Step 3: Complete -->
+                            <div class="d-flex flex-column align-items-center position-relative" style="z-index: 1;">
+                                <div class="rounded-circle bg-light text-muted d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <i class="bi bi-house-check"></i>
+                                </div>
+                                <div class="mt-2 text-center">
+                                    <small class="fw-bold text-muted">Phase 3</small>
+                                    <div class="small text-muted">Post Properties</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class='row justify-content-center'>
             <div class='col-md-8'>
                 <div class='card border-danger shadow-lg'>
@@ -91,7 +153,14 @@ if (empty($userProfile['identity_verified'])) { // Use new column
                         <h3 class='fw-bold mb-3'>You cannot post properties yet!</h3>
                         <p class='lead mb-4'>To prevent fraud and ensure safety, all dealers must verify their identity before listing properties.</p>
                         
-                        <?php if($upload_success || isset($_SESSION['verification_pending'])): ?>
+                        <?php if($is_rejected): ?>
+                             <div class="alert alert-danger border-danger text-start p-4 mb-4">
+                                <h4 class="alert-heading fw-bold"><i class="bi bi-x-circle-fill"></i> Verification Rejected</h4>
+                                <p class="mb-0 lead">Your previous verification attempt was rejected. Please ensure your photo clearly shows <strong>You AND the Property</strong> together.</p>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if($is_pending): ?>
                              <div class="alert alert-info border-info text-start p-4">
                                 <h4 class="alert-heading fw-bold"><i class="bi bi-clock-history"></i> Verification Pending</h4>
                                 <p class="mb-0 lead">Thank you for uploading your verification photo. Our team is currently reviewing your submission.</p>
@@ -102,10 +171,12 @@ if (empty($userProfile['identity_verified'])) { // Use new column
                                 <a href='dashboard.php' class='btn btn-primary px-4'>Return to Dashboard</a>
                             </div>
                         <?php else: ?>
+                            <?php if(!$is_rejected): ?>
                             <div class="alert alert-warning border-warning text-start">
                                 <h5 class="alert-heading fw-bold"><i class="bi bi-exclamation-triangle-fill"></i> Critical Action Required:</h5>
                                 <p class="mb-0">Please upload a clear photo of <strong>yourself standing next to your property</strong> to verify your identity.</p>
                             </div>
+                            <?php endif; ?>
                             
                             <?php if($upload_error): ?>
                                 <div class='alert alert-danger fw-bold'><?php echo $upload_error; ?></div>
@@ -468,14 +539,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <script>
     let map;
     let marker;
-    let autocomplete;
+    let geocoder;
+    let autocomplete; // Add autocomplete variable
     const locationInput = document.getElementById('location');
+    const cityInput = document.getElementById('city');
+    const countrySelect = document.getElementById('country');
     const latitudeInput = document.getElementById('latitude');
     const longitudeInput = document.getElementById('longitude');
 
     function initMap() {
         // Default to Lusaka, Zambia
         const defaultLocation = { lat: -15.4167, lng: 28.2833 };
+        geocoder = new google.maps.Geocoder();
         
         map = new google.maps.Map(document.getElementById("map"), {
             zoom: 13,
@@ -490,6 +565,38 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             draggable: true
         });
 
+        // Initialize Autocomplete
+        autocomplete = new google.maps.places.Autocomplete(locationInput);
+        autocomplete.bindTo('bounds', map);
+        
+        // Listen for place selection
+        autocomplete.addListener('place_changed', function() {
+            const place = autocomplete.getPlace();
+            
+            if (!place.geometry || !place.geometry.location) {
+                // User entered the name of a Place that was not suggested and
+                // pressed the Enter key, or the Place Details request failed.
+                window.alert("No details available for input: '" + place.name + "'");
+                return;
+            }
+
+            // If the place has a geometry, then present it on a map.
+            if (place.geometry.viewport) {
+                map.fitBounds(place.geometry.viewport);
+            } else {
+                map.setCenter(place.geometry.location);
+                map.setZoom(17);
+            }
+            
+            marker.setPosition(place.geometry.location);
+            updateCoordinates(place.geometry.location);
+            
+            // Also update address fields cleanly from the result
+            // We can reuse getAddress but we already have the place details here
+            // Let's manually parse it to match our 'clean name' logic
+            parseAddressComponents(place);
+        });
+
         // Try to get user's current location
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(function(position) {
@@ -501,6 +608,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 map.setZoom(15);
                 marker.setPosition(userLocation);
                 updateCoordinates(userLocation);
+                getAddress(userLocation); // Auto-fill on load
             });
         }
 
@@ -508,42 +616,83 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         map.addListener("click", function(e) {
             marker.setPosition(e.latLng);
             updateCoordinates(e.latLng);
+            getAddress(e.latLng);
         });
 
         // Add drag listener
         marker.addListener("dragend", function(e) {
             updateCoordinates(e.latLng);
+            getAddress(e.latLng);
         });
-
-        // Initialize Autocomplete
-        initAutocomplete();
     }
-
-    function initAutocomplete() {
-        autocomplete = new google.maps.places.Autocomplete(locationInput);
-        autocomplete.bindTo("bounds", map);
-
-        autocomplete.addListener("place_changed", function() {
-            const place = autocomplete.getPlace();
-
-            if (!place.geometry || !place.geometry.location) {
-                return;
-            }
-
-            // If the place has a geometry, then present it on a map.
-            if (place.geometry.viewport) {
-                map.fitBounds(place.geometry.viewport);
-            } else {
-                map.setCenter(place.geometry.location);
-                map.setZoom(17);
-            }
-
-            marker.setPosition(place.geometry.location);
-            updateCoordinates(place.geometry.location);
+    
+    // New helper to parse address components from either Geocoder or Autocomplete result
+    function parseAddressComponents(result) {
+        let streetNumber = "";
+        let route = "";
+        let neighborhood = "";
+        let sublocality = "";
+        let premise = "";
+        let city = "";
+        let country = "";
+        
+        for (const component of result.address_components) {
+            const type = component.types[0];
+            if (type === "street_number") streetNumber = component.long_name;
+            if (type === "route") route = component.long_name;
+            if (type === "neighborhood") neighborhood = component.long_name;
+            if (type === "sublocality" || type === "sublocality_level_1") sublocality = component.long_name;
+            if (type === "premise" || type === "subpremise") premise = component.long_name;
             
-            // Auto-fill City/Country if possible (Optional but nice)
-            fillAddressDetails(place);
-        });
+            // City/Country Extraction
+            if (!city && (type === "locality" || type === "administrative_area_level_1" || type === "postal_town")) {
+                if (type === "locality") city = component.long_name;
+                else if (!city) city = component.long_name;
+            }
+            if (!country && type === "country") {
+                country = component.long_name;
+            }
+        }
+        
+        let finalAddress = "";
+        
+        if (route) {
+            finalAddress = streetNumber ? streetNumber + " " + route : route;
+        } else if (premise) {
+            finalAddress = premise;
+        } else if (sublocality) {
+             finalAddress = sublocality;
+        } else if (neighborhood) {
+            finalAddress = neighborhood;
+        } else {
+            finalAddress = result.formatted_address ? result.formatted_address.split(',')[0] : result.name;
+        }
+        
+        if (route && (sublocality || neighborhood)) {
+             let area = sublocality || neighborhood;
+             if (area && !finalAddress.includes(area)) {
+                 finalAddress += ", " + area;
+             }
+        }
+        
+        if (finalAddress.match(/^[A-Z0-9]{4}\+[A-Z0-9]{2,}/)) {
+            finalAddress = finalAddress.replace(/^[A-Z0-9]{4}\+[A-Z0-9]{2,}\s*/, '');
+            if (!finalAddress.trim()) {
+                 finalAddress = sublocality || neighborhood || "Selected Location";
+            }
+        }
+        
+        locationInput.value = finalAddress;
+        
+        if (city) cityInput.value = city;
+        if (country) {
+            for (let i = 0; i < countrySelect.options.length; i++) {
+                if (countrySelect.options[i].text.toLowerCase() === country.toLowerCase()) {
+                    countrySelect.selectedIndex = i;
+                    break;
+                }
+            }
+        }
     }
 
     function updateCoordinates(latLng) {
@@ -551,28 +700,153 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         longitudeInput.value = latLng.lng();
     }
 
-    function fillAddressDetails(place) {
-        // Reset fields
-        document.getElementById('city').value = '';
+    function getAddress(latLng) {
+        locationInput.placeholder = "Fetching address...";
         
-        // Loop through address components
-        for (const component of place.address_components) {
-            const componentType = component.types[0];
-
-            if (componentType === "locality" || componentType === "administrative_area_level_1") {
-                document.getElementById('city').value = component.long_name;
-            }
-            if (componentType === "country") {
-                const countrySelect = document.getElementById('country');
-                // Try to match country name
-                for(let i=0; i<countrySelect.options.length; i++) {
-                    if(countrySelect.options[i].text === component.long_name) {
-                        countrySelect.selectedIndex = i;
-                        break;
+        geocoder.geocode({ location: latLng }, (results, status) => {
+            if (status === "OK") {
+                if (results && results.length > 0) {
+                    // Find the best result that is NOT a Plus Code
+                    let bestResult = null;
+                    
+                    // Priority 1: Exact Street Address or Premise
+                    for (let res of results) {
+                        if (res.types.includes('street_address') || res.types.includes('premise')) {
+                            bestResult = res;
+                            break;
+                        }
                     }
+                    
+                    // Priority 2: Route (Street name)
+                    if (!bestResult) {
+                        for (let res of results) {
+                            if (res.types.includes('route')) {
+                                bestResult = res;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Priority 3: Neighborhood / Sublocality
+                    if (!bestResult) {
+                        for (let res of results) {
+                            if (res.types.includes('neighborhood') || res.types.includes('sublocality') || res.types.includes('sublocality_level_1')) {
+                                bestResult = res;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Fallback: First result (but skip strict plus_code types if possible)
+                    if (!bestResult) {
+                        bestResult = results[0];
+                        // If it's a strict plus code result and we have others, try next
+                        if (bestResult.types.includes('plus_code') && results.length > 1) {
+                            bestResult = results[1];
+                        }
+                    }
+
+                    // Extract components from the BEST result
+                    let streetNumber = "";
+                    let route = "";
+                    let neighborhood = "";
+                    let sublocality = "";
+                    let premise = "";
+                    
+                    for (const component of bestResult.address_components) {
+                        const type = component.types[0];
+                        if (type === "street_number") streetNumber = component.long_name;
+                        if (type === "route") route = component.long_name;
+                        if (type === "neighborhood") neighborhood = component.long_name;
+                        if (type === "sublocality" || type === "sublocality_level_1") sublocality = component.long_name;
+                        if (type === "premise" || type === "subpremise") premise = component.long_name;
+                    }
+                    
+                    let finalAddress = "";
+                    
+                    // Construct a clean Street Address
+                    if (route) {
+                        // Standard: Number + Street (e.g., "123 Independence Ave")
+                        finalAddress = streetNumber ? streetNumber + " " + route : route;
+                    } else if (premise) {
+                        // Named Building (e.g., "Manda Hill Mall")
+                        finalAddress = premise;
+                    } else if (sublocality) {
+                         // Area Name (e.g., "Woodlands")
+                         finalAddress = sublocality;
+                    } else if (neighborhood) {
+                        // Neighborhood (e.g., "Kabulonga")
+                        finalAddress = neighborhood;
+                    } else {
+                        // Fallback: Use the first part of formatted address, but clean it
+                        finalAddress = bestResult.formatted_address.split(',')[0];
+                    }
+                    
+                    // Append neighborhood if we only have a street name to be more specific
+                    // e.g., "Independence Ave, Woodlands"
+                    if (route && (sublocality || neighborhood)) {
+                         let area = sublocality || neighborhood;
+                         if (area && !finalAddress.includes(area)) {
+                             finalAddress += ", " + area;
+                         }
+                    }
+                    
+                    // Final Cleanup: Remove Plus Codes
+                    if (finalAddress.match(/^[A-Z0-9]{4}\+[A-Z0-9]{2,}/)) {
+                        finalAddress = finalAddress.replace(/^[A-Z0-9]{4}\+[A-Z0-9]{2,}\s*/, '');
+                        if (!finalAddress.trim()) {
+                             finalAddress = sublocality || neighborhood || "Selected Location";
+                        }
+                    }
+                    
+                    locationInput.value = finalAddress;
+
+                    // 2. Extract City and Country (Can check all results for reliability)
+                    let city = "";
+                    let country = "";
+                    
+                    // Helper to check components of a result
+                    const extractCityCountry = (res) => {
+                        for (const component of res.address_components) {
+                            const componentType = component.types[0];
+                            if (!city && (componentType === "locality" || componentType === "administrative_area_level_1" || componentType === "postal_town")) {
+                                if (componentType === "locality") city = component.long_name;
+                                else if (!city) city = component.long_name; // Fallback to admin area
+                            }
+                            if (!country && componentType === "country") {
+                                country = component.long_name;
+                            }
+                        }
+                    };
+                    
+                    // Check best result first
+                    extractCityCountry(bestResult);
+                    
+                    // If missing, check results[0] (often has broader info)
+                    if (!city || !country) {
+                         if(results[0]) extractCityCountry(results[0]);
+                    }
+
+                    if (city) {
+                        cityInput.value = city;
+                    }
+
+                    if (country) {
+                        for (let i = 0; i < countrySelect.options.length; i++) {
+                            if (countrySelect.options[i].text.toLowerCase() === country.toLowerCase()) {
+                                countrySelect.selectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    locationInput.placeholder = "No address found";
                 }
+            } else {
+                console.error("Geocoder failed due to: " + status);
+                locationInput.placeholder = "Address lookup failed";
             }
-        }
+        });
     }
 
     // Dynamic Field Logic (Keep existing logic)

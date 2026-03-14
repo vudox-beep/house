@@ -6,6 +6,115 @@ require_once '../models/User.php';
 // Include Header
 include 'includes/header.php';
 
+// Check Verification Status First
+$userModel = new User();
+$userProfile = $userModel->getUserById($_SESSION['user_id']);
+
+if ($userProfile['identity_verified'] != 1) {
+    // Check if doc uploaded
+    $upload_success = '';
+    $upload_error = '';
+    $is_pending = false;
+    
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['dealer_verification_doc'])) {
+        $target_dir = "../assets/images/dealer_docs/";
+        if (!file_exists($target_dir)) {
+            mkdir($target_dir, 0777, true);
+        }
+        $file_extension = strtolower(pathinfo($_FILES["dealer_verification_doc"]["name"], PATHINFO_EXTENSION));
+        $new_filename = 'dealer_' . $_SESSION['user_id'] . '_' . uniqid() . '.' . $file_extension;
+        $target_file = $target_dir . $new_filename;
+        $allowed = ['jpg', 'jpeg', 'png', 'pdf'];
+        if (!in_array($file_extension, $allowed)) {
+            $upload_error = "Only JPG, PNG & PDF files are allowed.";
+        } else {
+            if (move_uploaded_file($_FILES["dealer_verification_doc"]["tmp_name"], $target_file)) {
+                require_once '../includes/SimpleMailer.php';
+                $mailer = new SimpleMailer();
+                $subject = "Dealer Verification Request - " . $_SESSION['user_name'];
+                $body = "User " . $_SESSION['user_name'] . " (ID: " . $_SESSION['user_id'] . ") has uploaded a verification document.<br>File: " . SITE_URL . "/assets/images/dealer_docs/" . $new_filename;
+                $mailer->send(SMTP_FROM, $subject, $body);
+                
+                try {
+                    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+                    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                    $stmt = $pdo->prepare("UPDATE users SET verification_doc = :doc, identity_verified = 0 WHERE id = :id");
+                    $stmt->execute([':doc' => "assets/images/dealer_docs/" . $new_filename, ':id' => $_SESSION['user_id']]);
+                    $userProfile['identity_verified'] = 0; 
+                } catch (Exception $e) {}
+                
+                $upload_success = "Document uploaded successfully.";
+                $is_pending = true;
+            } else {
+                $upload_error = "Failed to upload file.";
+            }
+        }
+    }
+    
+    $is_rejected = ($userProfile['identity_verified'] == 2);
+    if ($upload_success) {
+        $is_rejected = false;
+        $is_pending = true;
+    } elseif ($userProfile['identity_verified'] == 0 && !empty($userProfile['verification_doc'])) {
+        $is_pending = true;
+    }
+
+    echo "
+    <div class='container mt-5'>
+        <div class='row justify-content-center'>
+            <div class='col-md-8'>
+                <div class='card border-danger shadow-lg'>
+                    <div class='card-header bg-danger text-white py-3'>
+                        <h4 class='mb-0 fw-bold'><i class='bi bi-shield-lock-fill me-2'></i>Account Verification Required</h4>
+                    </div>
+                    <div class='card-body p-5 text-center'>
+                        <div class='mb-4'>
+                            <i class='bi bi-person-badge display-1 text-danger'></i>
+                        </div>
+                        <h3 class='fw-bold mb-3'>Verification Required</h3>
+                        <p class='lead mb-4'>You cannot manage tenant payments until your identity is verified.</p>
+                        
+                        " . ($is_rejected ? "
+                            <div class='alert alert-danger border-danger text-start p-4 mb-4'>
+                                <h4 class='alert-heading fw-bold'><i class='bi bi-x-circle-fill'></i> Verification Rejected</h4>
+                                <p class='mb-0 lead'>Your previous verification attempt was rejected. Please upload a new photo.</p>
+                            </div>
+                        " : "") . "
+
+                        " . ($is_pending ? "
+                             <div class='alert alert-info border-info text-start p-4'>
+                                <h4 class='alert-heading fw-bold'><i class='bi bi-clock-history'></i> Verification Pending</h4>
+                                <p class='mb-0 lead'>Your verification photo is under review. Please wait for approval.</p>
+                            </div>
+                        " : "
+                            " . (!$is_rejected ? "
+                            <div class='alert alert-warning border-warning text-start'>
+                                <h5 class='alert-heading fw-bold'><i class='bi bi-exclamation-triangle-fill'></i> Action Required:</h5>
+                                <p class='mb-0'>Please upload a photo of <strong>yourself standing next to your property</strong> to proceed.</p>
+                            </div>" : "") . "
+                            
+                            " . ($upload_error ? "<div class='alert alert-danger'>$upload_error</div>" : "") . "
+                            
+                            <form method='POST' enctype='multipart/form-data' class='mt-4 p-4 border rounded bg-light'>
+                                <div class='mb-3 text-start'>
+                                    <label class='form-label fw-bold'>Upload Verification Photo</label>
+                                    <input type='file' class='form-control' name='dealer_verification_doc' required accept='.jpg,.jpeg,.png,.pdf'>
+                                    <div class='form-text'>Photo of you + property. Formats: JPG, PNG</div>
+                                </div>
+                                <button type='submit' class='btn btn-danger w-100 fw-bold'>Submit Verification Photo</button>
+                            </form>
+                        ") . "
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'></script>
+    </body>
+    </html>";
+    exit;
+}
+
 $dealer_id = $_SESSION['user_id'];
 $db = new Database();
 $conn = $db->connect();

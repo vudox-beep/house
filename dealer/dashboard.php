@@ -11,7 +11,7 @@ $userModel = new User();
 $userProfile = $userModel->getUserById($_SESSION['user_id']); 
 
 // Check Identity Verification First (Blocking Screen)
-if (empty($userProfile['identity_verified'])) {
+if ($userProfile['identity_verified'] != 1) {
     // Show same blocking screen
     
     // Check if doc uploaded
@@ -19,11 +19,9 @@ if (empty($userProfile['identity_verified'])) {
     $upload_error = '';
     $is_pending = false;
     
-    if (!empty($userProfile['verification_doc'])) {
-        $is_pending = true;
-    }
+    // Check if verification_doc is not null
+    // But if status is 2 (Rejected), we should treat it as rejected unless they just re-uploaded
     
-    // Handle upload here too
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['dealer_verification_doc'])) {
         $target_dir = "../assets/images/dealer_docs/";
         if (!file_exists($target_dir)) {
@@ -46,8 +44,12 @@ if (empty($userProfile['identity_verified'])) {
                 try {
                     $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
                     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-                    $stmt = $pdo->prepare("UPDATE users SET verification_doc = :doc WHERE id = :id");
+                    // Reset to 0 (Pending)
+                    $stmt = $pdo->prepare("UPDATE users SET verification_doc = :doc, identity_verified = 0 WHERE id = :id");
                     $stmt->execute([':doc' => "assets/images/dealer_docs/" . $new_filename, ':id' => $_SESSION['user_id']]);
+                    
+                    // Update local variable to reflect change immediately
+                    $userProfile['identity_verified'] = 0; 
                 } catch (Exception $e) {}
                 
                 $upload_success = "Document uploaded successfully.";
@@ -57,49 +59,127 @@ if (empty($userProfile['identity_verified'])) {
             }
         }
     }
+    
+    // Determine display state
+    $is_rejected = ($userProfile['identity_verified'] == 2);
+    // If we just uploaded successfully, it is pending, not rejected (locally)
+    if ($upload_success) {
+        $is_rejected = false;
+        $is_pending = true;
+    } elseif ($userProfile['identity_verified'] == 0 && !empty($userProfile['verification_doc'])) {
+        $is_pending = true;
+    }
 
     echo "
     <div class='container mt-5'>
         <div class='row justify-content-center'>
-            <div class='col-md-8'>
-                <div class='card border-danger shadow-lg'>
-                    <div class='card-header bg-danger text-white py-3'>
-                        <h4 class='mb-0 fw-bold'><i class='bi bi-shield-lock-fill me-2'></i>Account Verification Required</h4>
+            <div class='col-lg-8'>
+                <!-- Main Verification Card -->
+                <div class='card border-0 shadow-lg rounded-4 overflow-hidden'>
+                    
+                    <!-- Header with Gradient -->
+                    <div class='card-header border-0 py-4 text-center' style='background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%); color: white;'>
+                        <h3 class='fw-bold mb-1'><i class='bi bi-shield-check me-2'></i>Account Verification</h3>
+                        <p class='mb-0 opacity-75'>Complete the steps below to activate your dealer account.</p>
                     </div>
-                    <div class='card-body p-5 text-center'>
-                        <div class='mb-4'>
-                            <i class='bi bi-person-badge display-1 text-danger'></i>
-                        </div>
-                        <h3 class='fw-bold mb-3'>Welcome to Your Dashboard!</h3>
-                        <p class='lead mb-4'>Before you can manage properties or view stats, you must verify your identity.</p>
+
+                    <div class='card-body p-5'>
                         
+                        <!-- Progress Tracker -->
+                        <div class='position-relative mb-5 px-4'>
+                            <div class='progress' style='height: 4px;'>
+                                <div class='progress-bar bg-success' role='progressbar' style='width: 50%;' aria-valuenow='50' aria-valuemin='0' aria-valuemax='100'></div>
+                            </div>
+                            <div class='d-flex justify-content-between position-absolute top-0 start-0 w-100' style='transform: translateY(-50%);'>
+                                <!-- Step 1 -->
+                                <div class='text-center' style='width: 100px;'>
+                                    <div class='rounded-circle bg-success text-white d-flex align-items-center justify-content-center mx-auto shadow-sm' style='width: 40px; height: 40px; border: 4px solid #fff;'>
+                                        <i class='bi bi-check-lg'></i>
+                                    </div>
+                                    <div class='mt-2'>
+                                        <small class='fw-bold text-success d-block'>Step 1</small>
+                                        <span class='badge bg-light text-success border border-success-subtle'>Email Verified</span>
+                                    </div>
+                                </div>
+                                <!-- Step 2 -->
+                                <div class='text-center' style='width: 100px;'>
+                                    <div class='rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto shadow-sm' style='width: 40px; height: 40px; border: 4px solid #fff; box-shadow: 0 0 0 4px rgba(13,110,253,0.2) !important;'>
+                                        <span class='fw-bold'>2</span>
+                                    </div>
+                                    <div class='mt-2'>
+                                        <small class='fw-bold text-primary d-block'>Step 2</small>
+                                        <span class='badge bg-primary text-white'>Identity Check</span>
+                                    </div>
+                                </div>
+                                <!-- Step 3 -->
+                                <div class='text-center' style='width: 100px;'>
+                                    <div class='rounded-circle bg-light text-muted d-flex align-items-center justify-content-center mx-auto' style='width: 40px; height: 40px; border: 4px solid #fff;'>
+                                        <i class='bi bi-house-door'></i>
+                                    </div>
+                                    <div class='mt-2'>
+                                        <small class='fw-bold text-muted d-block'>Step 3</small>
+                                        <span class='text-muted small'>Start Listing</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Status Message -->
+                        " . ($is_rejected ? "
+                            <div class='alert alert-danger border-danger text-start p-4 mb-4'>
+                                <h4 class='alert-heading fw-bold'><i class='bi bi-x-circle-fill'></i> Verification Rejected</h4>
+                                <p class='mb-0 lead'>Your previous verification attempt was rejected. Please upload a new photo.</p>
+                            </div>
+                        " : "") . "
+
                         " . ($is_pending ? "
-                             <div class='alert alert-info border-info text-start p-4'>
-                                <h4 class='alert-heading fw-bold'><i class='bi bi-clock-history'></i> Verification Pending</h4>
-                                <p class='mb-0 lead'>Your verification photo is under review. Please wait for approval.</p>
+                             <div class='text-center py-4'>
+                                <div class='mb-3'>
+                                    <div class='spinner-border text-primary' role='status' style='width: 3rem; height: 3rem;'></div>
+                                </div>
+                                <h4 class='fw-bold text-dark'>Verification in Progress</h4>
+                                <p class='text-muted mb-0' style='max-width: 400px; margin: 0 auto;'>
+                                    We have received your documents and our team is reviewing them. 
+                                    You will receive an email notification once your account is approved.
+                                </p>
                             </div>
                         " : "
-                            <div class='alert alert-warning border-warning text-start'>
-                                <h5 class='alert-heading fw-bold'><i class='bi bi-exclamation-triangle-fill'></i> Action Required:</h5>
-                                <p class='mb-0'>Please upload a photo of <strong>yourself standing next to your property</strong> to proceed.</p>
-                            </div>
+                            " . (!$is_rejected ? "
+                            <div class='text-center mb-4'>
+                                <h5 class='fw-bold'>Verify Your Identity</h5>
+                                <p class='text-muted'>To ensure safety on our platform, please upload a photo of yourself standing next to one of your properties.</p>
+                            </div>" : "") . "
                             
-                            " . ($upload_error ? "<div class='alert alert-danger'>$upload_error</div>" : "") . "
+                            " . ($upload_error ? "<div class='alert alert-danger shadow-sm border-0'><i class='bi bi-exclamation-circle-fill me-2'></i>$upload_error</div>" : "") . "
                             
-                            <form method='POST' enctype='multipart/form-data' class='mt-4 p-4 border rounded bg-light'>
-                                <div class='mb-3 text-start'>
-                                    <label class='form-label fw-bold'>Upload Verification Photo</label>
-                                    <input type='file' class='form-control' name='dealer_verification_doc' required accept='.jpg,.jpeg,.png,.pdf'>
-                                    <div class='form-text'>Photo of you + property. Formats: JPG, PNG</div>
+                            <form method='POST' enctype='multipart/form-data' class='text-start'>
+                                <div class='mb-4'>
+                                    <label class='form-label fw-bold small text-uppercase text-muted'>Upload Photo</label>
+                                    <div class='p-4 border-2 border-dashed rounded-3 bg-light text-center position-relative hover-shadow' style='border-style: dashed; border-color: #dee2e6; transition: all 0.3s ease;'>
+                                        <input type='file' class='form-control position-absolute top-0 start-0 w-100 h-100 opacity-0' name='dealer_verification_doc' required accept='.jpg,.jpeg,.png,.pdf' style='cursor: pointer;' onchange='this.nextElementSibling.innerHTML = \"<i class=\\\"bi bi-check-circle-fill text-success fs-1 mb-2\\\"></i><h6 class=\\\"fw-bold\\\">\" + this.files[0].name + \"</h6><p class=\\\"small text-muted\\\">Ready to submit</p>\"'>
+                                        <div class='pointer-events-none'>
+                                            <i class='bi bi-cloud-arrow-up text-primary display-4 mb-2'></i>
+                                            <h6 class='fw-bold mb-1'>Click or Drag photo here</h6>
+                                            <p class='small text-muted mb-0'>Supports JPG, PNG, PDF (Max 5MB)</p>
+                                        </div>
+                                    </div>
                                 </div>
-                                <button type='submit' class='btn btn-danger w-100 fw-bold'>Submit Verification Photo</button>
+                                <button type='submit' class='btn btn-primary w-100 py-3 fw-bold shadow-sm rounded-3'>
+                                    <i class='bi bi-shield-lock-fill me-2'></i> Submit for Review
+                                </button>
                             </form>
                         ") . "
+                    </div>
+                    <div class='card-footer bg-light border-0 py-3 text-center'>
+                        <small class='text-muted'><i class='bi bi-lock-fill me-1'></i> Your information is securely stored and only visible to admins.</small>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+    <style>
+        .hover-shadow:hover { background-color: #e9ecef !important; border-color: #adb5bd !important; }
+    </style>
     <script src='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'></script>
     </body>
     </html>";

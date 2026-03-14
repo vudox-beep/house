@@ -47,8 +47,14 @@ require_once 'config/config.php';
                     <p>When you create an account with us, you must provide information that is accurate, complete, and current at all times. Failure to do so constitutes a breach of the Terms.</p>
                 </div>
 
+                <div class="card border-0 shadow-sm p-4 mb-4 bg-light border-start border-4 border-primary">
+                    <h3 class="h5 fw-bold mb-3 text-primary">3. Platform Nature & Services</h3>
+                    <p><strong><?php echo SITE_NAME; ?> is a property listing and management platform.</strong> We do not own the properties listed on our website. However, we <strong>do provide property management services</strong> to assist dealers and landlords.</p>
+                    <p class="mb-0">While we are not a traditional real estate agency representing buyers in sales transactions, we actively facilitate rental management, tenant communications, and payment processing for our registered dealers.</p>
+                </div>
+
                 <div class="card border-0 shadow-sm p-4 mb-4 border-start border-4 border-danger bg-danger-subtle">
-                    <h3 class="h5 fw-bold mb-3 text-danger"><i class="bi bi-shield-exclamation me-2"></i>CRITICAL WARNING: Tenant Safety & Payment Policy</h3>
+                    <h3 class="h5 fw-bold mb-3 text-danger"><i class="bi bi-shield-exclamation me-2"></i>4. CRITICAL WARNING: Tenant Safety & Payment Policy</h3>
                     <p class="mb-3 fw-bold">To protect yourself from fraud, you strictly agree to the following:</p>
                     <ul class="list-unstyled">
                         <li class="mb-3 d-flex">
@@ -67,7 +73,7 @@ require_once 'config/config.php';
                 </div>
 
                 <div class="card border-0 shadow-sm p-4 mb-4">
-                    <h3 class="h5 fw-bold mb-3">4. Anti-Fraud & Fake Listings Policy</h3>
+                    <h3 class="h5 fw-bold mb-3">5. Anti-Fraud & Fake Listings Policy</h3>
                     <p>We are committed to maintaining a safe and trustworthy platform. Users agree to the following strictly enforced rules:</p>
                     <ul>
                         <li class="mb-2"><strong>Accurate Representation:</strong> All property listings must accurately represent the actual property. Photos must be current and truthful.</li>
@@ -84,17 +90,17 @@ require_once 'config/config.php';
                 </div>
 
                 <div class="card border-0 shadow-sm p-4 mb-4">
-                    <h3 class="h5 fw-bold mb-3">4. Fees and Payments</h3>
+                    <h3 class="h5 fw-bold mb-3">6. Fees and Payments</h3>
                     <p>Dealers are required to pay subscription fees to list properties. All fees are non-refundable unless otherwise stated in writing by <?php echo SITE_NAME; ?>.</p>
                 </div>
 
                 <div class="card border-0 shadow-sm p-4 mb-4">
-                    <h3 class="h5 fw-bold mb-3">5. Limitation of Liability</h3>
+                    <h3 class="h5 fw-bold mb-3">7. Limitation of Liability</h3>
                     <p>In no event shall <?php echo SITE_NAME; ?>, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses.</p>
                 </div>
 
                 <div class="card border-0 shadow-sm p-4 mb-4">
-                    <h3 class="h5 fw-bold mb-3">7. Changes to Terms</h3>
+                    <h3 class="h5 fw-bold mb-3">8. Changes to Terms</h3>
                     <p>We reserve the right, at our sole discretion, to modify or replace these Terms at any time. By continuing to access or use our Service after those revisions become effective, you agree to be bound by the revised terms.</p>
                 </div>
 

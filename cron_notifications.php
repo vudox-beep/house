@@ -66,26 +66,49 @@ foreach ($rentals as $rental) {
                     <a href='" . SITE_URL . "/login.php'>Login Here</a>";
     }
     
-    // Case 2: Due Today/Overdue (e.g., sent on 5th)
-    if ($current_day == 5 && !$payment) {
-        $should_notify_tenant = true;
-        $should_notify_dealer = true; // Alert dealer that tenant hasn't paid by the 5th
-        
-        $subject = "Rent Payment Overdue: " . $target_month . " - " . SITE_NAME;
-        $message = "Hello " . $rental['tenant_name'] . ",<br><br>
-                    We haven't received your rent payment for <b>" . $target_month . "</b> yet.<br>
-                    Property: " . $rental['property_title'] . "<br>
-                    Amount: " . $rental['currency'] . " " . number_format($rental['rent_amount']) . "<br><br>
-                    Please make the payment immediately to avoid penalties.<br>
-                    <a href='" . SITE_URL . "/login.php'>Login Here</a>";
-                    
-        // Dealer Message
-        $dealer_subject = "Tenant Payment Overdue: " . $rental['tenant_name'];
-        $dealer_message = "Hello " . $rental['dealer_name'] . ",<br><br>
-                           Your tenant <b>" . $rental['tenant_name'] . "</b> has not yet submitted payment for <b>" . $target_month . "</b>.<br>
-                           Property: " . $rental['property_title'] . "<br><br>
-                           You may want to follow up with them.";
-    }
+// Case 2a: Due Today (1st of the month)
+if ($current_day == 1 && !$payment) {
+    $should_notify_tenant = true;
+    $subject = "Rent Payment Due Today: " . $target_month . " - " . SITE_NAME;
+    $message = "Hello " . $rental['tenant_name'] . ",<br><br>
+                Your rent for <b>" . $target_month . "</b> is due today.<br>
+                Property: " . $rental['property_title'] . "<br>
+                Amount: " . $rental['currency'] . " " . number_format($rental['rent_amount']) . "<br><br>
+                Please login to your dashboard to upload proof of payment.<br>
+                <a href='" . SITE_URL . "/login.php'>Login Here</a>";
+}
+
+// Case 2b: Gentle Reminder (3rd of the month)
+if ($current_day == 3 && !$payment) {
+    $should_notify_tenant = true;
+    $subject = "Friendly Reminder: Rent for " . $target_month . " - " . SITE_NAME;
+    $message = "Hello " . $rental['tenant_name'] . ",<br><br>
+                This is a friendly reminder to submit your rent payment for <b>" . $target_month . "</b>.<br>
+                Property: " . $rental['property_title'] . "<br>
+                Amount: " . $rental['currency'] . " " . number_format($rental['rent_amount']) . "<br><br>
+                <a href='" . SITE_URL . "/login.php'>Login Here</a>";
+}
+
+// Case 2c: Overdue (5th of the month)
+if ($current_day == 5 && !$payment) {
+    $should_notify_tenant = true;
+    $should_notify_dealer = true; // Alert dealer that tenant hasn't paid by the 5th
+    
+    $subject = "Rent Payment Overdue: " . $target_month . " - " . SITE_NAME;
+    $message = "Hello " . $rental['tenant_name'] . ",<br><br>
+                We haven't received your rent payment for <b>" . $target_month . "</b> yet.<br>
+                Property: " . $rental['property_title'] . "<br>
+                Amount: " . $rental['currency'] . " " . number_format($rental['rent_amount']) . "<br><br>
+                Please make the payment immediately to avoid penalties.<br>
+                <a href='" . SITE_URL . "/login.php'>Login Here</a>";
+                
+    // Dealer Message
+    $dealer_subject = "Tenant Payment Overdue: " . $rental['tenant_name'];
+    $dealer_message = "Hello " . $rental['dealer_name'] . ",<br><br>
+                       Your tenant <b>" . $rental['tenant_name'] . "</b> has not yet submitted payment for <b>" . $target_month . "</b>.<br>
+                       Property: " . $rental['property_title'] . "<br><br>
+                       You may want to follow up with them.";
+}
 
     // Send Emails
     if ($should_notify_tenant) {

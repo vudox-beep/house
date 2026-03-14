@@ -1,5 +1,5 @@
 <?php
-require_once 'config/config.php';
+require_once __DIR__ . '/config/config.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -37,24 +37,42 @@ require_once 'config/config.php';
                 <h1 class="mb-4 fw-bold">Privacy Policy</h1>
                 <p class="text-muted mb-5">Last Updated: <?php echo date('F d, Y'); ?></p>
 
-                <div class="card border-0 shadow-sm p-4 mb-4">
-                    <h3 class="h5 fw-bold mb-3">1. Information We Collect</h3>
-                    <p>We collect information you provide directly to us, such as when you create an account, update your profile, post a listing, or communicate with other users. This may include your name, email address, phone number, and payment information.</p>
+                <div class="alert alert-warning border-0 shadow-sm mb-4">
+                    <i class="bi bi-shield-check me-2"></i>
+                    <strong>Data Privacy Commitment:</strong> We process your verification data strictly for account authentication and fraud prevention purposes. Your data is never sold, shared, or used for any other purpose.
                 </div>
 
                 <div class="card border-0 shadow-sm p-4 mb-4">
-                    <h3 class="h5 fw-bold mb-3">2. How We Use Your Information</h3>
-                    <p>We use the information we collect to:</p>
+                    <h3 class="h5 fw-bold mb-3">1. Information Collection and Usage</h3>
+                    <p>We collect information you provide directly to us, such as when you create an account, update your profile, post a listing, or communicate with other users. This includes, but is not limited to, your name, email address, phone number, and payment information.</p>
+                    <p><strong>Identity Verification Data:</strong> For dealers and property managers, we may require the submission of identification documents or photographs (e.g., a photo of the individual at the property location) ("Verification Data"). This data is collected pursuant to our legitimate interest in maintaining the security and integrity of our platform.</p>
+                </div>
+
+                <div class="card border-0 shadow-sm p-4 mb-4">
+                    <h3 class="h5 fw-bold mb-3">2. Purpose of Data Processing</h3>
+                    <p>We process the information we collect for the following specific purposes:</p>
                     <ul>
-                        <li>Provide, maintain, and improve our services.</li>
-                        <li>Process transactions and send related information.</li>
-                        <li>Verify your identity and prevent fraud.</li>
-                        <li>Send you technical notices, updates, security alerts, and support messages.</li>
+                        <li>To provide, maintain, and improve our services.</li>
+                        <li>To process transactions and send related notifications.</li>
+                        <li>To verify your identity and prevent fraudulent activity. <strong>Verification Data is processed exclusively for identity validation and fraud prevention.</strong></li>
+                        <li>To communicate with you regarding technical notices, updates, security alerts, and administrative messages.</li>
                     </ul>
                 </div>
 
                 <div class="card border-0 shadow-sm p-4 mb-4">
-                    <h3 class="h5 fw-bold mb-3">3. Fake Listings & Fraud Prevention</h3>
+                    <h3 class="h5 fw-bold mb-3">3. Confidentiality of Verification Data</h3>
+                    <p>We acknowledge the sensitivity of Identity Verification Data. Accordingly, we adhere to the following strict confidentiality protocols:</p>
+                    <ul>
+                        <li><strong>Sole Purpose Limitation:</strong> Verification Data shall be used solely for the purpose of verifying the user's identity and property ownership claims. It shall not be used for marketing, profiling, or any other secondary purpose.</li>
+                        <li><strong>Access Control:</strong> Access to Verification Data is strictly restricted to authorized administrative personnel who have a specific need to access such information for verification duties.</li>
+                        <li><strong>Non-Disclosure:</strong> We do not sell, lease, trade, or otherwise disclose Verification Data to any third parties, except where required by applicable law or legal process.</li>
+                        <li><strong>Data Security:</strong> We employ industry-standard technical and organizational security measures to protect Verification Data against unauthorized access, alteration, disclosure, or destruction.</li>
+                        <li><strong>Retention Policy:</strong> Verification Data is retained only for as long as is necessary to fulfill the verification purpose and comply with legal obligations. Upon request or account termination, such data shall be deleted in accordance with our data retention schedule.</li>
+                    </ul>
+                </div>
+
+                <div class="card border-0 shadow-sm p-4 mb-4">
+                    <h3 class="h5 fw-bold mb-3">4. Fake Listings & Fraud Prevention</h3>
                     <p class="text-danger fw-bold">Strict Policy Against Fake Listings:</p>
                     <p>We have a zero-tolerance policy for fake listings. Any user found posting false information, misleading photos, or non-existent properties will be immediately banned.</p>
                     <p><strong>Consequences:</strong></p>
@@ -66,12 +84,12 @@ require_once 'config/config.php';
                 </div>
 
                 <div class="card border-0 shadow-sm p-4 mb-4">
-                    <h3 class="h5 fw-bold mb-3">4. Data Security</h3>
+                    <h3 class="h5 fw-bold mb-3">5. Data Security</h3>
                     <p>We implement reasonable security measures to help protect your personal information. However, no method of transmission over the Internet is 100% secure, and we cannot guarantee absolute security.</p>
                 </div>
 
                 <div class="card border-0 shadow-sm p-4 mb-4">
-                    <h3 class="h5 fw-bold mb-3">5. Changes to This Policy</h3>
+                    <h3 class="h5 fw-bold mb-3">6. Changes to This Policy</h3>
                     <p>We may change this Privacy Policy from time to time. If we make changes, we will notify you by revising the date at the top of the policy and, in some cases, provide you with additional notice.</p>
                 </div>
 

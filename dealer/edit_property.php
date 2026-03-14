@@ -9,6 +9,15 @@ include 'includes/header.php';
 // Check Subscription
 $userModel = new User();
 $dealerProfile = $userModel->getDealerProfile($_SESSION['user_id']);
+$userProfile = $userModel->getUserById($_SESSION['user_id']); // Get generic user data
+
+// Check Identity Verification First (Blocking Screen)
+if ($userProfile['identity_verified'] != 1) {
+    // Redirect to properties page where the block is handled nicely
+    echo "<script>window.location.href = 'properties.php';</script>";
+    exit;
+}
+
 $canEdit = false;
 
 if ($dealerProfile && $dealerProfile['subscription_status'] === 'active') {
@@ -273,58 +282,320 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<!-- Google Maps JS -->
-<script src="https://maps.googleapis.com/maps/api/js?key=<?php echo GOOGLE_MAPS_API_KEY; ?>&callback=initMap" async defer></script>
+<!-- Google Maps API -->
+<script src="https://maps.googleapis.com/maps/api/js?key=<?php echo GOOGLE_MAPS_API_KEY; ?>&libraries=places&callback=initMap" async defer></script>
+
 <script>
     let map;
     let marker;
+    let geocoder;
+    let autocomplete; // Add autocomplete variable
+    const locationInput = document.getElementById('location');
+    const cityInput = document.getElementById('city');
+    const countrySelect = document.getElementById('country');
+    const latitudeInput = document.getElementById('latitude');
+    const longitudeInput = document.getElementById('longitude');
 
     function initMap() {
         // Use existing lat/long or default to Lusaka
-        const existingLat = <?php echo !empty($property['latitude']) ? $property['latitude'] : -15.3875; ?>;
-        const existingLng = <?php echo !empty($property['longitude']) ? $property['longitude'] : 28.3228; ?>;
-        const location = { lat: existingLat, lng: existingLng };
+        let existingLat = <?php echo !empty($property['latitude']) ? $property['latitude'] : -15.4167; ?>;
+        let existingLng = <?php echo !empty($property['longitude']) ? $property['longitude'] : 28.2833; ?>;
         
+        // Basic validation for lat/lng
+        if (existingLat === 0) existingLat = -15.4167;
+        if (existingLng === 0) existingLng = 28.2833;
+        
+        const existingLocation = { lat: existingLat, lng: existingLng };
+        geocoder = new google.maps.Geocoder();
+
         map = new google.maps.Map(document.getElementById("map"), {
-            zoom: 12,
-            center: location,
+            zoom: 13,
+            center: existingLocation,
+            mapTypeId: google.maps.MapTypeId.ROADMAP
         });
 
-        // Place initial marker
+        // Initialize marker
         marker = new google.maps.Marker({
-            position: location,
+            position: existingLocation,
             map: map,
+            draggable: true
         });
 
-        // Add click listener
-        map.addListener("click", (e) => {
-            placeMarkerAndPanTo(e.latLng);
+        // Initialize Autocomplete
+        autocomplete = new google.maps.places.Autocomplete(locationInput);
+        autocomplete.bindTo('bounds', map);
+        
+        // Listen for place selection
+        autocomplete.addListener('place_changed', function() {
+            const place = autocomplete.getPlace();
+            
+            if (!place.geometry || !place.geometry.location) {
+                // User entered the name of a Place that was not suggested and
+                // pressed the Enter key, or the Place Details request failed.
+                window.alert("No details available for input: '" + place.name + "'");
+                return;
+            }
+
+            // If the place has a geometry, then present it on a map.
+            if (place.geometry.viewport) {
+                map.fitBounds(place.geometry.viewport);
+            } else {
+                map.setCenter(place.geometry.location);
+                map.setZoom(17);
+            }
+            
+            marker.setPosition(place.geometry.location);
+            updateCoordinates(place.geometry.location);
+            
+            // Also update address fields cleanly from the result
+            parseAddressComponents(place);
         });
-        // Initial setup for fields
+
+        // Map Click Event
+        map.addListener("click", function(e) {
+            marker.setPosition(e.latLng);
+            updateCoordinates(e.latLng);
+            getAddress(e.latLng);
+        });
+
+        // Marker Drag Event
+        marker.addListener("dragend", function(e) {
+            updateCoordinates(e.latLng);
+            getAddress(e.latLng);
+        });
+        
+        // Initial field setup
         updateFields();
     }
-
-    function placeMarkerAndPanTo(latLng) {
-        if (marker) {
-            marker.setPosition(latLng);
-        } else {
-            marker = new google.maps.Marker({
-                position: latLng,
-                map: map,
-            });
-        }
-        map.panTo(latLng);
+    
+    // New helper to parse address components from either Geocoder or Autocomplete result
+    function parseAddressComponents(result) {
+        let streetNumber = "";
+        let route = "";
+        let neighborhood = "";
+        let sublocality = "";
+        let premise = "";
+        let city = "";
+        let country = "";
         
-        // Update hidden inputs
-        document.getElementById('latitude').value = latLng.lat();
-        document.getElementById('longitude').value = latLng.lng();
+        for (const component of result.address_components) {
+            const type = component.types[0];
+            if (type === "street_number") streetNumber = component.long_name;
+            if (type === "route") route = component.long_name;
+            if (type === "neighborhood") neighborhood = component.long_name;
+            if (type === "sublocality" || type === "sublocality_level_1") sublocality = component.long_name;
+            if (type === "premise" || type === "subpremise") premise = component.long_name;
+            
+            // City/Country Extraction
+            if (!city && (type === "locality" || type === "administrative_area_level_1" || type === "postal_town")) {
+                if (type === "locality") city = component.long_name;
+                else if (!city) city = component.long_name;
+            }
+            if (!country && type === "country") {
+                country = component.long_name;
+            }
+        }
+        
+        let finalAddress = "";
+        
+        if (route) {
+            finalAddress = streetNumber ? streetNumber + " " + route : route;
+        } else if (premise) {
+            finalAddress = premise;
+        } else if (sublocality) {
+             finalAddress = sublocality;
+        } else if (neighborhood) {
+            finalAddress = neighborhood;
+        } else {
+            finalAddress = result.formatted_address ? result.formatted_address.split(',')[0] : result.name;
+        }
+        
+        if (route && (sublocality || neighborhood)) {
+             let area = sublocality || neighborhood;
+             if (area && !finalAddress.includes(area)) {
+                 finalAddress += ", " + area;
+             }
+        }
+        
+        if (finalAddress.match(/^[A-Z0-9]{4}\+[A-Z0-9]{2,}/)) {
+            finalAddress = finalAddress.replace(/^[A-Z0-9]{4}\+[A-Z0-9]{2,}\s*/, '');
+            if (!finalAddress.trim()) {
+                 finalAddress = sublocality || neighborhood || "Selected Location";
+            }
+        }
+        
+        locationInput.value = finalAddress;
+        
+        if (city) cityInput.value = city;
+        if (country) {
+            for (let i = 0; i < countrySelect.options.length; i++) {
+                if (countrySelect.options[i].text.toLowerCase() === country.toLowerCase()) {
+                    countrySelect.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+    }
+
+    function updateCoordinates(latLng) {
+        latitudeInput.value = latLng.lat();
+        longitudeInput.value = latLng.lng();
+    }
+
+    function getAddress(latLng) {
+        locationInput.placeholder = "Fetching address...";
+        
+        geocoder.geocode({ location: latLng }, (results, status) => {
+            if (status === "OK") {
+                if (results && results.length > 0) {
+                    // Find the best result that is NOT a Plus Code
+                    let bestResult = null;
+                    
+                    // Priority 1: Exact Street Address or Premise
+                    for (let res of results) {
+                        if (res.types.includes('street_address') || res.types.includes('premise')) {
+                            bestResult = res;
+                            break;
+                        }
+                    }
+                    
+                    // Priority 2: Route (Street name)
+                    if (!bestResult) {
+                        for (let res of results) {
+                            if (res.types.includes('route')) {
+                                bestResult = res;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Priority 3: Neighborhood / Sublocality
+                    if (!bestResult) {
+                        for (let res of results) {
+                            if (res.types.includes('neighborhood') || res.types.includes('sublocality') || res.types.includes('sublocality_level_1')) {
+                                bestResult = res;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Fallback: First result (but skip strict plus_code types if possible)
+                    if (!bestResult) {
+                        bestResult = results[0];
+                        if (bestResult.types.includes('plus_code') && results.length > 1) {
+                            bestResult = results[1];
+                        }
+                    }
+
+                    // Extract components from the BEST result
+                    let streetNumber = "";
+                    let route = "";
+                    let neighborhood = "";
+                    let sublocality = "";
+                    let premise = "";
+                    
+                    for (const component of bestResult.address_components) {
+                        const type = component.types[0];
+                        if (type === "street_number") streetNumber = component.long_name;
+                        if (type === "route") route = component.long_name;
+                        if (type === "neighborhood") neighborhood = component.long_name;
+                        if (type === "sublocality" || type === "sublocality_level_1") sublocality = component.long_name;
+                        if (type === "premise" || type === "subpremise") premise = component.long_name;
+                    }
+                    
+                    let finalAddress = "";
+                    
+                    // Construct a clean Street Address
+                    if (route) {
+                        // Standard: Number + Street (e.g., "123 Independence Ave")
+                        finalAddress = streetNumber ? streetNumber + " " + route : route;
+                    } else if (premise) {
+                        // Named Building (e.g., "Manda Hill Mall")
+                        finalAddress = premise;
+                    } else if (sublocality) {
+                         // Area Name (e.g., "Woodlands")
+                         finalAddress = sublocality;
+                    } else if (neighborhood) {
+                        // Neighborhood (e.g., "Kabulonga")
+                        finalAddress = neighborhood;
+                    } else {
+                        // Fallback: Use the first part of formatted address, but clean it
+                        finalAddress = bestResult.formatted_address.split(',')[0];
+                    }
+                    
+                    // Append neighborhood if we only have a street name to be more specific
+                    // e.g., "Independence Ave, Woodlands"
+                    if (route && (sublocality || neighborhood)) {
+                         let area = sublocality || neighborhood;
+                         if (area && !finalAddress.includes(area)) {
+                             finalAddress += ", " + area;
+                         }
+                    }
+                    
+                    // Final Cleanup: Remove Plus Codes
+                    if (finalAddress.match(/^[A-Z0-9]{4}\+[A-Z0-9]{2,}/)) {
+                        finalAddress = finalAddress.replace(/^[A-Z0-9]{4}\+[A-Z0-9]{2,}\s*/, '');
+                        if (!finalAddress.trim()) {
+                             finalAddress = sublocality || neighborhood || "Selected Location";
+                        }
+                    }
+                    
+                    locationInput.value = finalAddress;
+
+                    // 2. Extract City and Country (Can check all results for reliability)
+                    let city = "";
+                    let country = "";
+                    
+                    const extractCityCountry = (res) => {
+                        for (const component of res.address_components) {
+                            const componentType = component.types[0];
+                            if (!city && (componentType === "locality" || componentType === "administrative_area_level_1" || componentType === "postal_town")) {
+                                if (componentType === "locality") city = component.long_name;
+                                else if (!city) city = component.long_name;
+                            }
+                            if (!country && componentType === "country") {
+                                country = component.long_name;
+                            }
+                        }
+                    };
+                    
+                    extractCityCountry(bestResult);
+                    if (!city || !country) {
+                         if(results[0]) extractCityCountry(results[0]);
+                    }
+
+                    if (city) {
+                        cityInput.value = city;
+                    }
+
+                    if (country) {
+                        for (let i = 0; i < countrySelect.options.length; i++) {
+                            if (countrySelect.options[i].text.toLowerCase() === country.toLowerCase()) {
+                                countrySelect.selectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    locationInput.placeholder = "No address found";
+                }
+            } else {
+                console.error("Geocoder failed due to: " + status);
+                locationInput.placeholder = "Address lookup failed";
+            }
+        });
     }
 
     // Dynamic Field Logic
     const typeSelect = document.getElementById('property_type');
-    typeSelect.addEventListener('change', updateFields);
+    if (typeSelect) {
+        typeSelect.addEventListener('change', updateFields);
+    }
 
     function updateFields() {
+        const typeSelect = document.getElementById('property_type');
+        if (!typeSelect) return;
+        
         const type = typeSelect.value;
         const standardGroups = document.querySelectorAll('.group-standard');
         const boardingGroups = document.querySelectorAll('.group-boarding');
@@ -345,12 +616,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             boardingGroups.forEach(el => el.style.display = 'block');
             commonGroups.forEach(el => el.style.display = 'block');
         } else if (type === 'lodge') {
-            standardGroups.forEach(el => el.style.display = 'block'); // Lodges have bedrooms
-            venueGroups.forEach(el => el.style.display = 'block'); // And capacity/events
+            standardGroups.forEach(el => el.style.display = 'block');
+            venueGroups.forEach(el => el.style.display = 'block');
             commonGroups.forEach(el => el.style.display = 'block');
         } else if (['wedding_venue', 'restaurant', 'commercial', 'studio'].includes(type)) {
             venueGroups.forEach(el => el.style.display = 'block');
-            // Hide standard bedrooms/bathrooms and rooms for purely commercial/event spaces
         }
     }
 </script>

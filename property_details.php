@@ -170,8 +170,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-center">
                     <li class="nav-item"><a class="nav-link text-dark fw-semibold" href="index.php">Home</a></li>
-                    <li class="nav-item"><a class="nav-link text-muted" href="#">About</a></li>
-                    <li class="nav-item"><a class="nav-link text-muted" href="#">Contact</a></li>
+                    <li class="nav-item"><a class="nav-link text-muted" href="about.php">About</a></li>
+                    <li class="nav-item"><a class="nav-link text-muted" href="services.php">Services</a></li>
+                    <li class="nav-item"><a class="nav-link text-muted" href="pricing.php">Pricing</a></li>
+                    <li class="nav-item"><a class="nav-link text-muted" href="contact.php">Contact</a></li>
                     <?php if(isset($_SESSION['user_id'])): ?>
                         <?php if($_SESSION['user_role'] == 'dealer'): ?>
                             <li class="nav-item"><a class="nav-link text-muted" href="dealer/dashboard.php">Dashboard</a></li>
@@ -329,40 +331,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
             <!-- Left Column: Details -->
             <div class="col-lg-8">
                 
-                <!-- Key Features -->
-                <div class="d-flex justify-content-between border-bottom pb-4 mb-4 text-center">
-                    <?php if(in_array($property['property_type'], ['house', 'apartment', 'flat', 'cottage', 'manor', 'lodge', 'bedsitter'])): ?>
-                    <div>
-                        <span class="d-block text-muted small">Bedrooms</span>
-                        <span class="fw-bold fs-5"><i class="bi bi-bed"></i> <?php echo $property['bedrooms']; ?></span>
-                    </div>
-                    <div>
-                        <span class="d-block text-muted small">Bathrooms</span>
-                        <span class="fw-bold fs-5"><i class="bi bi-droplet"></i> <?php echo $property['bathrooms']; ?></span>
-                    </div>
-                    <?php endif; ?>
+                <!-- Key Features (Neat Cards) -->
+                <div class="mb-4">
+                    <div class="row g-3">
+                        <?php if(in_array($property['property_type'], ['house', 'apartment', 'flat', 'cottage', 'manor', 'lodge', 'bedsitter'])): ?>
+                        <div class="col-6 col-md-3">
+                            <div class="bg-light border rounded-3 p-3 h-100 shadow-sm">
+                                <div class="small text-muted">Bedrooms</div>
+                                <div class="fw-bold fs-5"><i class="bi bi-bed me-1"></i><?php echo $property['bedrooms']; ?></div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="bg-light border rounded-3 p-3 h-100 shadow-sm">
+                                <div class="small text-muted">Bathrooms</div>
+                                <div class="fw-bold fs-5"><i class="bi bi-droplet me-1"></i><?php echo $property['bathrooms']; ?></div>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <?php if($property['property_type'] == 'boarding_house'): ?>
+                        <div class="col-6 col-md-3">
+                            <div class="bg-light border rounded-3 p-3 h-100 shadow-sm">
+                                <div class="small text-muted">Per Room</div>
+                                <div class="fw-bold fs-6"><i class="bi bi-people me-1"></i><?php echo $property['people_per_room'] ?? 1; ?> People</div>
+                            </div>
+                        </div>
+                        <?php endif; ?>
 
-                    <?php if($property['property_type'] == 'boarding_house'): ?>
-                    <div>
-                        <span class="d-block text-muted small">Per Room</span>
-                        <span class="fw-bold fs-5"><i class="bi bi-people"></i> <?php echo $property['people_per_room'] ?? 1; ?> People</span>
-                    </div>
-                    <?php endif; ?>
+                        <?php if(in_array($property['property_type'], ['wedding_venue', 'restaurant', 'commercial', 'studio'])): ?>
+                        <div class="col-6 col-md-3">
+                            <div class="bg-light border rounded-3 p-3 h-100 shadow-sm">
+                                <div class="small text-muted">Capacity</div>
+                                <div class="fw-bold fs-6"><i class="bi bi-people-fill me-1"></i><?php echo $property['capacity'] ?? 'N/A'; ?></div>
+                            </div>
+                        </div>
+                        <?php endif; ?>
 
-                    <?php if(in_array($property['property_type'], ['wedding_venue', 'restaurant', 'commercial', 'studio'])): ?>
-                    <div>
-                        <span class="d-block text-muted small">Capacity</span>
-                        <span class="fw-bold fs-5"><i class="bi bi-people-fill"></i> <?php echo $property['capacity'] ?? 'N/A'; ?></span>
-                    </div>
-                    <?php endif; ?>
-
-                    <div>
-                        <span class="d-block text-muted small">Area</span>
-                        <span class="fw-bold fs-5"><i class="bi bi-aspect-ratio"></i> <?php echo $property['size_sqm']; ?> m²</span>
-                    </div>
-                    <div>
-                        <span class="d-block text-muted small">Type</span>
-                        <span class="fw-bold fs-5"><?php echo ucfirst(str_replace('_', ' ', $property['property_type'])); ?></span>
+                        <div class="col-6 col-md-3">
+                            <div class="bg-light border rounded-3 p-3 h-100 shadow-sm">
+                                <div class="small text-muted">Area</div>
+                                <div class="fw-bold fs-6"><i class="bi bi-aspect-ratio me-1"></i><?php echo $property['size_sqm']; ?> m²</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="bg-light border rounded-3 p-3 h-100 shadow-sm">
+                                <div class="small text-muted">Type</div>
+                                <div class="fw-bold fs-6"><?php echo ucfirst(str_replace('_', ' ', $property['property_type'])); ?></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -447,9 +463,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                     <h4 class="fw-bold mb-3">What this place offers</h4>
                     <div class="amenities-grid">
                         <?php foreach($amenities as $amenity): ?>
-                            <div class="amenity-item">
-                                <i class="bi bi-check-circle-fill"></i>
-                                <span><?php echo trim($amenity); ?></span>
+                            <div class="bg-light border rounded-3 p-3 d-flex align-items-center gap-2 shadow-sm">
+                                <i class="bi bi-check-circle-fill text-success"></i>
+                                <span class="fw-medium"><?php echo htmlspecialchars(trim($amenity)); ?></span>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -652,6 +668,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                     <p class="text-muted small">The leading real estate platform in Africa & Europe. Connecting tenants with trusted dealers seamlessly.</p>
                     <div class="mb-3">
                         <p class="small text-white mb-1"><i class="bi bi-envelope-fill text-primary me-2"></i> chisalaluckyk5@gmail.com</p>
+                        <p class="small text-white mb-1"><i class="bi bi-telephone-fill text-primary me-2"></i> 0772125121</p>
                     </div>
                     <div class="d-flex gap-3">
                         <a href="#" class="text-white hover-warning"><i class="bi bi-facebook"></i></a>
@@ -664,9 +681,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                     <h6 class="text-white mb-3">Quick Links</h6>
                     <ul class="list-unstyled small text-muted">
                         <li class="mb-2"><a href="index.php" class="text-decoration-none text-white hover-warning">Home</a></li>
-                        <li class="mb-2"><a href="#" class="text-decoration-none text-white hover-warning">About Us</a></li>
+                        <li class="mb-2"><a href="about.php" class="text-decoration-none text-white hover-warning">About Us</a></li>
+                        <li class="mb-2"><a href="services.php" class="text-decoration-none text-white hover-warning">Services</a></li>
+                        <li class="mb-2"><a href="pricing.php" class="text-decoration-none text-white hover-warning">Pricing</a></li>
                         <li class="mb-2"><a href="listings.php" class="text-decoration-none text-white hover-warning">Properties</a></li>
-                        <li class="mb-2"><a href="#" class="text-decoration-none text-white hover-warning">Contact</a></li>
+                        <li class="mb-2"><a href="contact.php" class="text-decoration-none text-white hover-warning">Contact</a></li>
                     </ul>
                 </div>
                 <div class="col-md-2">
@@ -689,7 +708,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
             </div>
             <hr class="border-secondary my-4">
             <div class="d-flex justify-content-between align-items-center small text-muted">
-                <div>&copy; <?php echo date('Y'); ?> <?php echo SITE_NAME; ?>. All rights reserved.</div>
+                <div>&copy; <?php echo date('Y'); ?> <?php echo SITE_NAME; ?>. All rights reserved. <span class="fw-bold">Owned by <?php echo OWNER_NAME; ?>.</span></div>
                 <div>Builder: <span class="text-white">Lucky Chisala</span></div>
             </div>
         </div>
@@ -697,6 +716,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
 
     <!-- Google Maps JS -->
     <script src="https://maps.googleapis.com/maps/api/js?key=<?php echo GOOGLE_MAPS_API_KEY; ?>&callback=initMap" async defer></script>
+    
     <!-- Lightbox JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/glightbox/3.2.0/js/glightbox.min.js"></script>
     <script>
@@ -705,6 +725,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
             loop: true,
             autoplayVideos: true
         });
+
+        // ... (Favorite and Calculator functions remain same) ...
 
         function toggleFavorite(propertyId) {
             // Optimistic UI Update for all favorite buttons
@@ -795,11 +817,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
         }
 
         function initMap() {
-            var location = { lat: <?php echo $lat; ?>, lng: <?php echo $lng; ?> };
+            var lat = <?php echo $lat; ?>;
+            var lng = <?php echo $lng; ?>;
+            
+            // Basic validation
+            if (lat === 0) lat = -15.3875;
+            if (lng === 0) lng = 28.3228;
+
+            var location = { lat: lat, lng: lng };
+            
             var map = new google.maps.Map(document.getElementById('map'), {
                 zoom: 15,
                 center: location
             });
+            
             var marker = new google.maps.Marker({
                 position: location,
                 map: map,

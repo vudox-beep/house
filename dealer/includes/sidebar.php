@@ -1,7 +1,9 @@
-<div class="dealer-sidebar shadow">
-    <a href="../index.php" class="sidebar-brand">
-        <i class="bi bi-house-heart-fill"></i> <?php echo SITE_NAME; ?>
-    </a>
+<div class="dealer-sidebar shadow d-flex flex-column">
+    <div class="px-3 pt-3 pb-2">
+        <a href="../index.php" class="sidebar-brand m-0 p-0 text-decoration-none d-block mb-3">
+            <i class="bi bi-house-heart-fill"></i> <?php echo SITE_NAME; ?>
+        </a>
+    </div>
     
     <?php
     // Fetch counts for badges
@@ -20,64 +22,66 @@
     $activeProps = $stmtProp->fetchColumn();
     
     // Count new leads
-    // Assuming leads table has a 'status' column where 'new' or 'unread' is the default
-    // If status column doesn't exist, we might need to check if table exists first or add it
-    // For now, let's try to count all leads if status doesn't exist, or just 'new' ones
     try {
+        // Check if leads table exists and has status column first to avoid errors
+        // For simplicity in this fix, we wrap in try-catch
         $stmtLead = $pdo->prepare("SELECT COUNT(*) FROM leads WHERE dealer_id = ? AND status = 'new'");
         $stmtLead->execute([$dealer_id]);
         $newLeads = $stmtLead->fetchColumn();
     } catch (Exception $e) {
-        $newLeads = 0; // Fallback if column missing
+        $newLeads = 0; // Fallback
     }
     ?>
 
-    <ul class="sidebar-nav">
-        <li class="sidebar-item">
-            <a href="dashboard.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>">
-                <i class="bi bi-speedometer2"></i> Dashboard
-            </a>
-        </li>
-        <li class="sidebar-item">
-            <a href="properties.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'properties.php' ? 'active' : ''; ?> d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-houses-fill"></i> My Properties</span>
-                <?php if($activeProps > 0): ?>
-                    <span class="badge bg-primary rounded-pill small"><?php echo $activeProps; ?></span>
-                <?php endif; ?>
-            </a>
-        </li>
-        <li class="sidebar-item">
-            <a href="leads.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'leads.php' ? 'active' : ''; ?> d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-chat-left-text-fill"></i> Leads</span>
-                <?php if($newLeads > 0): ?>
-                    <span class="badge bg-danger rounded-pill small"><?php echo $newLeads; ?></span>
-                <?php endif; ?>
-            </a>
-        </li>
-        <li class="sidebar-item">
-            <a href="tenants.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'tenants.php' ? 'active' : ''; ?>">
-                <i class="bi bi-people-fill"></i> Manage Tenants
-            </a>
-        </li>
-        <li class="sidebar-item">
-            <a href="subscribe.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'subscribe.php' ? 'active' : ''; ?>">
-                <i class="bi bi-credit-card-2-front-fill"></i> Subscription
-            </a>
-        </li>
-        <li class="sidebar-item">
-            <a href="payments.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'payments.php' ? 'active' : ''; ?>">
-                <i class="bi bi-receipt"></i> Payment History
-            </a>
-        </li>
-        <li class="sidebar-item">
-            <a href="profile.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'profile.php' ? 'active' : ''; ?>">
-                <i class="bi bi-person-circle"></i> Profile
-            </a>
-        </li>
-        <li class="sidebar-item mt-5">
-            <a href="../logout.php" class="sidebar-link text-danger">
-                <i class="bi bi-box-arrow-right"></i> Logout
-            </a>
-        </li>
-    </ul>
+    <div class="flex-grow-1 overflow-y-auto">
+        <ul class="sidebar-nav">
+            <li class="sidebar-item">
+                <a href="dashboard.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+            </li>
+            <li class="sidebar-item">
+                <a href="properties.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'properties.php' ? 'active' : ''; ?> d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-houses-fill"></i> My Properties</span>
+                    <?php if($activeProps > 0): ?>
+                        <span class="badge bg-primary rounded-pill small"><?php echo $activeProps; ?></span>
+                    <?php endif; ?>
+                </a>
+            </li>
+            <li class="sidebar-item">
+                <a href="leads.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'leads.php' ? 'active' : ''; ?> d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-chat-left-text-fill"></i> Leads</span>
+                    <?php if($newLeads > 0): ?>
+                        <span class="badge bg-danger rounded-pill small"><?php echo $newLeads; ?></span>
+                    <?php endif; ?>
+                </a>
+            </li>
+            <li class="sidebar-item">
+                <a href="tenants.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'tenants.php' ? 'active' : ''; ?>">
+                    <i class="bi bi-people-fill"></i> Manage Tenants
+                </a>
+            </li>
+            <li class="sidebar-item">
+                <a href="subscribe.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'subscribe.php' ? 'active' : ''; ?>">
+                    <i class="bi bi-credit-card-2-front-fill"></i> Subscription
+                </a>
+            </li>
+            <li class="sidebar-item">
+                <a href="payments.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'payments.php' ? 'active' : ''; ?>">
+                    <i class="bi bi-receipt"></i> Payment History
+                </a>
+            </li>
+            <li class="sidebar-item">
+                <a href="profile.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'profile.php' ? 'active' : ''; ?>">
+                    <i class="bi bi-person-circle"></i> Profile
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="mt-auto p-3 border-top border-white border-opacity-10">
+        <a href="../logout.php" class="sidebar-link text-danger bg-transparent ps-2">
+            <i class="bi bi-box-arrow-right"></i> Logout
+        </a>
+    </div>
 </div>

@@ -12,7 +12,7 @@ $dealerProfile = $userModel->getDealerProfile($_SESSION['user_id']);
 $userProfile = $userModel->getUserById($_SESSION['user_id']); // Get generic user data for verification status
 
 // Check Identity Verification First (Blocking Screen)
-if (empty($userProfile['identity_verified'])) {
+if ($userProfile['identity_verified'] != 1) {
     // Show same blocking screen as add_property.php
     
     // Check if doc uploaded
@@ -21,13 +21,10 @@ if (empty($userProfile['identity_verified'])) {
     $is_pending = false;
     
     // Check if verification_doc is not null
-    if (!empty($userProfile['verification_doc'])) {
-        $is_pending = true;
-    }
+    // But if status is 2 (Rejected), we should treat it as rejected unless they just re-uploaded
     
-    // Handle upload here too? Or redirect to add_property?
-    // Let's replicate the upload logic here so they can verify from either page.
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['dealer_verification_doc'])) {
+        // ... Upload Logic ...
         $target_dir = "../assets/images/dealer_docs/";
         if (!file_exists($target_dir)) {
             mkdir($target_dir, 0777, true);
@@ -49,8 +46,12 @@ if (empty($userProfile['identity_verified'])) {
                 try {
                     $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
                     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-                    $stmt = $pdo->prepare("UPDATE users SET verification_doc = :doc WHERE id = :id");
+                    // Reset to 0 (Pending)
+                    $stmt = $pdo->prepare("UPDATE users SET verification_doc = :doc, identity_verified = 0 WHERE id = :id");
                     $stmt->execute([':doc' => "assets/images/dealer_docs/" . $new_filename, ':id' => $_SESSION['user_id']]);
+                    
+                    // Update local variable to reflect change immediately
+                    $userProfile['identity_verified'] = 0; 
                 } catch (Exception $e) {}
                 
                 $upload_success = "Document uploaded successfully.";
@@ -59,6 +60,16 @@ if (empty($userProfile['identity_verified'])) {
                 $upload_error = "Failed to upload file.";
             }
         }
+    }
+    
+    // Determine display state
+    $is_rejected = ($userProfile['identity_verified'] == 2);
+    // If we just uploaded successfully, it is pending, not rejected (locally)
+    if ($upload_success) {
+        $is_rejected = false;
+        $is_pending = true;
+    } elseif ($userProfile['identity_verified'] == 0 && !empty($userProfile['verification_doc'])) {
+        $is_pending = true;
     }
 
     echo "
@@ -76,16 +87,24 @@ if (empty($userProfile['identity_verified'])) {
                         <h3 class='fw-bold mb-3'>Verify Identity to Manage Properties</h3>
                         <p class='lead mb-4'>You cannot view or manage properties until your identity is verified.</p>
                         
+                        " . ($is_rejected ? "
+                            <div class='alert alert-danger border-danger text-start p-4 mb-4'>
+                                <h4 class='alert-heading fw-bold'><i class='bi bi-x-circle-fill'></i> Verification Rejected</h4>
+                                <p class='mb-0 lead'>Your previous verification attempt was rejected. Please upload a new photo.</p>
+                            </div>
+                        " : "") . "
+
                         " . ($is_pending ? "
                              <div class='alert alert-info border-info text-start p-4'>
                                 <h4 class='alert-heading fw-bold'><i class='bi bi-clock-history'></i> Verification Pending</h4>
                                 <p class='mb-0 lead'>Your verification photo is under review. Please wait for approval.</p>
                             </div>
                         " : "
+                            " . (!$is_rejected ? "
                             <div class='alert alert-warning border-warning text-start'>
                                 <h5 class='alert-heading fw-bold'><i class='bi bi-exclamation-triangle-fill'></i> Action Required:</h5>
                                 <p class='mb-0'>Please upload a photo of <strong>yourself standing next to your property</strong> to proceed.</p>
-                            </div>
+                            </div>" : "") . "
                             
                             " . ($upload_error ? "<div class='alert alert-danger'>$upload_error</div>" : "") . "
                             

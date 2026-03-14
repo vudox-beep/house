@@ -4,6 +4,117 @@ require_once '../models/Property.php';
 require_once '../models/User.php';
 require_once '../includes/SimpleMailer.php';
 
+// Check Verification Status First
+$userModel = new User();
+$userProfile = $userModel->getUserById($_SESSION['user_id']);
+
+if ($userProfile['identity_verified'] != 1) {
+    include 'includes/header.php';
+    
+    // Check if doc uploaded
+    $upload_success = '';
+    $upload_error = '';
+    $is_pending = false;
+    
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['dealer_verification_doc'])) {
+        $target_dir = "../assets/images/dealer_docs/";
+        if (!file_exists($target_dir)) {
+            mkdir($target_dir, 0777, true);
+        }
+        $file_extension = strtolower(pathinfo($_FILES["dealer_verification_doc"]["name"], PATHINFO_EXTENSION));
+        $new_filename = 'dealer_' . $_SESSION['user_id'] . '_' . uniqid() . '.' . $file_extension;
+        $target_file = $target_dir . $new_filename;
+        $allowed = ['jpg', 'jpeg', 'png', 'pdf'];
+        if (!in_array($file_extension, $allowed)) {
+            $upload_error = "Only JPG, PNG & PDF files are allowed.";
+        } else {
+            if (move_uploaded_file($_FILES["dealer_verification_doc"]["tmp_name"], $target_file)) {
+                require_once '../includes/SimpleMailer.php';
+                $mailer = new SimpleMailer();
+                $subject = "Dealer Verification Request - " . $_SESSION['user_name'];
+                $body = "User " . $_SESSION['user_name'] . " (ID: " . $_SESSION['user_id'] . ") has uploaded a verification document.<br>File: " . SITE_URL . "/assets/images/dealer_docs/" . $new_filename;
+                $mailer->send(SMTP_FROM, $subject, $body);
+                
+                try {
+                    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+                    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                    $stmt = $pdo->prepare("UPDATE users SET verification_doc = :doc, identity_verified = 0 WHERE id = :id");
+                    $stmt->execute([':doc' => "assets/images/dealer_docs/" . $new_filename, ':id' => $_SESSION['user_id']]);
+                    $userProfile['identity_verified'] = 0; 
+                } catch (Exception $e) {}
+                
+                $upload_success = "Document uploaded successfully.";
+                $is_pending = true;
+            } else {
+                $upload_error = "Failed to upload file.";
+            }
+        }
+    }
+    
+    $is_rejected = ($userProfile['identity_verified'] == 2);
+    if ($upload_success) {
+        $is_rejected = false;
+        $is_pending = true;
+    } elseif ($userProfile['identity_verified'] == 0 && !empty($userProfile['verification_doc'])) {
+        $is_pending = true;
+    }
+
+    echo "
+    <div class='container mt-5'>
+        <div class='row justify-content-center'>
+            <div class='col-md-8'>
+                <div class='card border-danger shadow-lg'>
+                    <div class='card-header bg-danger text-white py-3'>
+                        <h4 class='mb-0 fw-bold'><i class='bi bi-shield-lock-fill me-2'></i>Account Verification Required</h4>
+                    </div>
+                    <div class='card-body p-5 text-center'>
+                        <div class='mb-4'>
+                            <i class='bi bi-person-badge display-1 text-danger'></i>
+                        </div>
+                        <h3 class='fw-bold mb-3'>Verification Required</h3>
+                        <p class='lead mb-4'>You cannot manage tenants until your identity is verified.</p>
+                        
+                        " . ($is_rejected ? "
+                            <div class='alert alert-danger border-danger text-start p-4 mb-4'>
+                                <h4 class='alert-heading fw-bold'><i class='bi bi-x-circle-fill'></i> Verification Rejected</h4>
+                                <p class='mb-0 lead'>Your previous verification attempt was rejected. Please upload a new photo.</p>
+                            </div>
+                        " : "") . "
+
+                        " . ($is_pending ? "
+                             <div class='alert alert-info border-info text-start p-4'>
+                                <h4 class='alert-heading fw-bold'><i class='bi bi-clock-history'></i> Verification Pending</h4>
+                                <p class='mb-0 lead'>Your verification photo is under review. Please wait for approval.</p>
+                            </div>
+                        " : "
+                            " . (!$is_rejected ? "
+                            <div class='alert alert-warning border-warning text-start'>
+                                <h5 class='alert-heading fw-bold'><i class='bi bi-exclamation-triangle-fill'></i> Action Required:</h5>
+                                <p class='mb-0'>Please upload a photo of <strong>yourself standing next to your property</strong> to proceed.</p>
+                            </div>" : "") . "
+                            
+                            " . ($upload_error ? "<div class='alert alert-danger'>$upload_error</div>" : "") . "
+                            
+                            <form method='POST' enctype='multipart/form-data' class='mt-4 p-4 border rounded bg-light'>
+                                <div class='mb-3 text-start'>
+                                    <label class='form-label fw-bold'>Upload Verification Photo</label>
+                                    <input type='file' class='form-control' name='dealer_verification_doc' required accept='.jpg,.jpeg,.png,.pdf'>
+                                    <div class='form-text'>Photo of you + property. Formats: JPG, PNG</div>
+                                </div>
+                                <button type='submit' class='btn btn-danger w-100 fw-bold'>Submit Verification Photo</button>
+                            </form>
+                        ") . "
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'></script>
+    </body>
+    </html>";
+    exit;
+}
+
 // Auth Check
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'dealer') {
     header("Location: ../login.php");
@@ -74,6 +185,7 @@ if (!$is_subscribed) {
         $rent_amount = $_POST['rent_amount'];
         $start_date = $_POST['start_date'];
         $end_date = !empty($_POST['end_date']) ? $_POST['end_date'] : null;
+        $room_number = !empty($_POST['room_number']) ? trim($_POST['room_number']) : null; // Get Room Number
         
         // 1. Check if user exists with this email
         $sql_check = "SELECT id, role FROM users WHERE email = :email";
@@ -128,8 +240,8 @@ if (!$is_subscribed) {
             }
 
             // 3. Create Rental Record
-            $sql_rental = "INSERT INTO rentals (property_id, dealer_id, tenant_id, start_date, end_date, rent_amount, status, payment_reference) 
-                           VALUES (:pid, :did, :tid, :start, :end, :amount, 'active', :ref)";
+            $sql_rental = "INSERT INTO rentals (property_id, dealer_id, tenant_id, start_date, end_date, rent_amount, status, payment_reference, room_number) 
+                           VALUES (:pid, :did, :tid, :start, :end, :amount, 'active', :ref, :room)";
             $stmt_rental = $conn->prepare($sql_rental);
             if ($stmt_rental->execute([
                 ':pid' => $property_id,
@@ -138,8 +250,30 @@ if (!$is_subscribed) {
                 ':start' => $start_date,
                 ':end' => $end_date,
                 ':amount' => $rent_amount,
-                ':ref' => $payment_reference
+                ':ref' => $payment_reference,
+                ':room' => $room_number
             ])) {
+                $rental_id = $conn->lastInsertId();
+
+                // Handle Initial Payment
+                $initial_months = isset($_POST['initial_payment_months']) ? (int)$_POST['initial_payment_months'] : 0;
+                if ($initial_months > 0) {
+                    $total_paid = $rent_amount * $initial_months;
+                    // Format month year from start date, e.g. "March 2026"
+                    $month_year = date('F Y', strtotime($start_date));
+                    
+                    $sql_pay = "INSERT INTO rent_payments (rental_id, tenant_id, month_year, amount, currency, status, payment_method, months_paid, dealer_notes) 
+                                VALUES (:rid, :tid, :my, :amt, 'ZMW', 'approved', 'cash', :months, 'Initial payment recorded by dealer')";
+                    $stmt_pay = $conn->prepare($sql_pay);
+                    $stmt_pay->execute([
+                        ':rid' => $rental_id,
+                        ':tid' => $tenant_id,
+                        ':my' => $month_year,
+                        ':amt' => $total_paid,
+                        ':months' => $initial_months
+                    ]);
+                }
+
                 // Send Reference ID via email
                 $mailer = new SimpleMailer();
                 $subject = "Welcome! Your Payment Reference ID - " . SITE_NAME;
@@ -266,10 +400,13 @@ foreach ($all_history_raw as $h) {
     $tenant_history[$h['tenant_id']][] = $h;
 }
 
+// Map for Next Due Dates
+$tenant_due_dates = [];
+
 // Calculate Next Due Date for each tenant
 foreach ($tenants as &$t) {
     // Get last approved payment
-    $sql_last_paid = "SELECT month_year, created_at, months_paid FROM rent_payments 
+    $sql_last_paid = "SELECT month_year, created_at, amount FROM rent_payments 
                       WHERE rental_id = :rid AND status = 'approved' 
                       ORDER BY id DESC LIMIT 1";
     $stmt_last = $conn->prepare($sql_last_paid);
@@ -282,8 +419,9 @@ foreach ($tenants as &$t) {
     if ($last_paid) {
         $last_paid_date = DateTime::createFromFormat('!F Y', $last_paid['month_year']);
         if ($last_paid_date) {
-            // Determine months paid (default to 1 if column missing or 0)
-            $months_paid = isset($last_paid['months_paid']) && $last_paid['months_paid'] > 0 ? (int)$last_paid['months_paid'] : 1;
+            // Determine months paid based on amount / rent_amount
+            $rent_amount = $t['rent_amount'] > 0 ? $t['rent_amount'] : 1;
+            $months_paid = max(1, round($last_paid['amount'] / $rent_amount));
             
             // Next due is +X months from the last paid month
             $next_due = clone $last_paid_date;
@@ -305,6 +443,8 @@ foreach ($tenants as &$t) {
         $t['next_due_date'] = $start_date->format('M d, Y');
         $t['due_timestamp'] = $start_date->getTimestamp();
     }
+    // Map tenant ID to Next Due Date
+    $tenant_due_dates[$t['tenant_id']] = $t['next_due_date'];
 }
 unset($t); // Break reference
 
@@ -479,6 +619,7 @@ unset($t); // Break reference
                                             <th class="ps-3 border-0">Tenant</th>
                                             <th class="border-0">Date</th>
                                             <th class="border-0">For Month</th>
+                                            <th class="border-0">Next Due</th>
                                             <th class="text-end pe-3 border-0">Amt</th>
                                         </tr>
                                     </thead>
@@ -491,6 +632,7 @@ unset($t); // Break reference
                                                     </td>
                                                     <td class="text-muted"><?php echo date('M d, Y', strtotime($pay['created_at'])); ?></td>
                                                     <td class="text-muted small"><?php echo htmlspecialchars($pay['month_year']); ?></td>
+                                                    <td class="text-muted small"><?php echo htmlspecialchars($tenant_due_dates[$pay['tenant_id']] ?? '-'); ?></td>
                                                     <td class="text-end pe-3 fw-medium"><?php echo number_format($pay['amount']); ?></td>
                                                 </tr>
                                             <?php endforeach; ?>
@@ -546,7 +688,12 @@ unset($t); // Break reference
                                                     <td>
                                                         <div class="d-flex align-items-center text-secondary">
                                                             <i class="bi bi-house-door me-2 text-muted"></i>
-                                                            <span class="text-truncate" style="max-width: 150px;"><?php echo htmlspecialchars($t['property_title']); ?></span>
+                                                            <div>
+                                                                <span class="text-truncate d-block" style="max-width: 150px;"><?php echo htmlspecialchars($t['property_title']); ?></span>
+                                                                <?php if(!empty($t['room_number'])): ?>
+                                                                    <span class="badge bg-light text-dark border small mt-1"><?php echo htmlspecialchars($t['room_number']); ?></span>
+                                                                <?php endif; ?>
+                                                            </div>
                                                         </div>
                                                     </td>
                                                     <td>
@@ -655,6 +802,10 @@ unset($t); // Break reference
                         </select>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold">Room Number / Name (Optional)</label>
+                        <input type="text" class="form-control-modern" name="room_number" placeholder="e.g. Room 101, Suite B">
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label text-muted small fw-bold">Tenant Email</label>
                         <input type="email" class="form-control-modern" name="email" placeholder="tenant@example.com" required>
                         <div class="form-text small">If the user exists, they will be linked. Otherwise, a new account will be created.</div>
@@ -668,13 +819,26 @@ unset($t); // Break reference
                             </div>
                         </div>
                         <div class="col-6">
-                            <label class="form-label text-muted small fw-bold">Start Date</label>
-                            <input type="date" class="form-control-modern" name="start_date" required>
+                            <label class="form-label text-muted small fw-bold">Initial Payment</label>
+                            <select class="form-select form-control-modern" name="initial_payment_months">
+                                <option value="0">None (Pay later)</option>
+                                <option value="1" selected>1 Month</option>
+                                <option value="2">2 Months</option>
+                                <option value="3">3 Months</option>
+                                <option value="6">6 Months</option>
+                                <option value="12">1 Year</option>
+                            </select>
                         </div>
                     </div>
-                    <div class="mb-4">
-                        <label class="form-label text-muted small fw-bold">End Date (Optional)</label>
-                        <input type="date" class="form-control-modern" name="end_date">
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label text-muted small fw-bold"></label>Start Date</label>
+                            <input type="date" class="form-control-modern" name="start_date" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small fw-bold">End Date (Optional)</label>
+                            <input type="date" class="form-control-modern" name="end_date">
+                        </div>
                     </div>
                     <div class="d-grid">
                         <button type="submit" name="add_tenant" class="btn btn-primary-modern py-2">Add Tenant</button>

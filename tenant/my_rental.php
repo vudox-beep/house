@@ -185,8 +185,16 @@ unset($r); // Break reference
                             <p class="text-muted mb-3"><i class="bi bi-geo-alt-fill text-danger me-1"></i> <?php echo htmlspecialchars($rental['location']); ?></p>
                             
                             <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded-3 mb-3">
-                                <span class="text-muted small">Monthly Rent</span>
-                                <span class="fw-bold fs-5 text-primary"><?php echo $rental['currency'] . ' ' . number_format($rental['rent_amount']); ?></span>
+                                <div>
+                                    <span class="text-muted small d-block">Monthly Rent</span>
+                                    <span class="fw-bold fs-5 text-primary"><?php echo $rental['currency'] . ' ' . number_format($rental['rent_amount']); ?></span>
+                                </div>
+                                <?php if(!empty($rental['room_number'])): ?>
+                                    <div class="text-end">
+                                        <span class="text-muted small d-block">Your Room</span>
+                                        <span class="badge bg-white text-dark border"><?php echo htmlspecialchars($rental['room_number']); ?></span>
+                                    </div>
+                                <?php endif; ?>
                             </div>
 
                             <div class="row g-2">

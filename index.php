@@ -45,8 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-center">
                     <li class="nav-item"><a class="nav-link active text-dark fw-semibold" href="index.php">Home</a></li>
-                    <li class="nav-item"><a class="nav-link text-muted" href="#">About</a></li>
-                    <li class="nav-item"><a class="nav-link text-muted" href="#">Contact</a></li>
+                    <li class="nav-item"><a class="nav-link text-muted" href="about.php">About</a></li>
+                    <li class="nav-item"><a class="nav-link text-muted" href="services.php">Services</a></li>
+                    <li class="nav-item"><a class="nav-link text-muted" href="pricing.php">Pricing</a></li>
+                    <li class="nav-item"><a class="nav-link text-muted" href="contact.php">Contact</a></li>
                     <?php if(isset($_SESSION['user_id'])): ?>
                         <?php if($_SESSION['user_role'] == 'dealer'): ?>
                             <li class="nav-item"><a class="nav-link text-muted" href="dealer/dashboard.php">Dashboard</a></li>
@@ -78,8 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
             <h1 class="hero-title">Your Private Oasis Awaits</h1>
             <p class="hero-subtitle">Discover hand-picked premium estates for your next unforgettable escape.</p>
             
-            <div class="search-bar-rounded">
-                <form action="listings.php" method="GET" class="d-flex w-100 flex-column flex-md-row">
+            <div class="search-bar-rounded" style="max-width: 900px;">
+                <form action="listings.php" method="GET" class="d-flex w-100 flex-column flex-md-row align-items-center">
                     <div class="search-input-group">
                         <i class="bi bi-geo-alt"></i>
                         <input type="text" class="search-input" name="location" placeholder="City or Country">
@@ -87,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                     <div class="search-input-group">
                         <i class="bi bi-tag"></i>
                         <select class="search-input bg-transparent" name="property_type" style="cursor:pointer;">
-                            <option value="">Any Type</option>
+                            <option value="">All Categories</option>
                             <option value="apartment">Apartment</option>
                             <option value="house">House</option>
                             <option value="boarding_house">Boarding House</option>
@@ -96,12 +98,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                         </select>
                     </div>
                     <div class="search-input-group">
-                        <i class="bi bi-wallet2"></i>
-                        <input type="number" class="search-input" name="max_price" placeholder="Max Budget">
+                        <i class="bi bi-cash"></i>
+                        <input type="number" class="search-input text-center" name="min_price" placeholder="Min" style="width: 40%;">
+                        <span class="text-muted fw-bold mx-1">-</span>
+                        <input type="number" class="search-input text-center" name="max_price" placeholder="Max" style="width: 40%;">
                     </div>
-                    <button type="submit" class="btn-search-rounded">
-                        <i class="bi bi-search"></i> Search
-                    </button>
+                    <div class="d-flex gap-2 p-2">
+                        <button type="submit" class="btn btn-primary rounded-pill px-3 py-2 fw-bold d-flex align-items-center gap-2" style="font-size: 0.9rem;">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                        <a href="listings.php" class="btn btn-light rounded-pill px-3 py-2 fw-bold d-flex align-items-center gap-2 border" style="font-size: 0.9rem;">
+                            <i class="bi bi-sliders"></i> Advanced
+                        </a>
+                    </div>
                 </form>
             </div>
         </div>
@@ -268,6 +277,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                             <span class="position-absolute top-0 end-0 badge bg-success-subtle text-success m-3 shadow-sm">
                                 <i class="bi bi-check-circle-fill"></i> Verified
                             </span>
+                            <span class="position-absolute bottom-0 end-0 badge bg-dark bg-opacity-75 m-3 shadow-sm">
+                                <i class="bi bi-images"></i> <?php echo count($images); ?> Photos
+                            </span>
                             <span class="featured-badge"><i class="bi bi-star-fill text-warning"></i> 4.9</span>
                             <span class="featured-price-badge">
                                 <?php 
@@ -381,6 +393,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                                             }
                                         ?>
                                     </span>
+                                    <span class="position-absolute bottom-0 end-0 badge bg-dark bg-opacity-75 text-white m-3 shadow-sm">
+                                        <i class="bi bi-images"></i> <?php echo count($images); ?>
+                                    </span>
                                 </div>
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between mb-2">
@@ -443,6 +458,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                     <p class="text-muted small">The leading real estate platform in Africa & Europe. Connecting tenants with trusted dealers seamlessly.</p>
                     <div class="mb-3">
                         <p class="small text-white mb-1"><i class="bi bi-envelope-fill text-primary me-2"></i> chisalaluckyk5@gmail.com</p>
+                        <p class="small text-white mb-1"><i class="bi bi-telephone-fill text-primary me-2"></i> 0772125121</p>
                     </div>
                     <div class="d-flex gap-3">
                         <a href="#" class="text-white hover-warning"><i class="bi bi-facebook"></i></a>
@@ -455,9 +471,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                     <h6 class="text-white mb-3">Quick Links</h6>
                     <ul class="list-unstyled small text-muted">
                         <li class="mb-2"><a href="index.php" class="text-decoration-none text-white hover-warning">Home</a></li>
-                        <li class="mb-2"><a href="#" class="text-decoration-none text-white hover-warning">About Us</a></li>
+                        <li class="mb-2"><a href="about.php" class="text-decoration-none text-white hover-warning">About Us</a></li>
+                        <li class="mb-2"><a href="services.php" class="text-decoration-none text-white hover-warning">Services</a></li>
+                        <li class="mb-2"><a href="pricing.php" class="text-decoration-none text-white hover-warning">Pricing</a></li>
                         <li class="mb-2"><a href="listings.php" class="text-decoration-none text-white hover-warning">Properties</a></li>
-                        <li class="mb-2"><a href="#" class="text-decoration-none text-white hover-warning">Contact</a></li>
+                        <li class="mb-2"><a href="contact.php" class="text-decoration-none text-white hover-warning">Contact</a></li>
                     </ul>
                 </div>
                 <div class="col-md-2">
@@ -479,9 +497,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                 </div>
             </div>
             <hr class="border-secondary my-4">
-            <div class="d-flex justify-content-between align-items-center small text-muted">
-                <div>&copy; <?php echo date('Y'); ?> <?php echo SITE_NAME; ?>. All rights reserved.</div>
-                <div>Builder: <span class="text-white">Lucky Chisala</span></div>
+            <div class="d-flex justify-content-between align-items-center small text-white">
+                <div>&copy; <?php echo date('Y'); ?> <?php echo SITE_NAME; ?>. All rights reserved. <span class="fw-bold">Owned by <?php echo OWNER_NAME; ?>.</span></div>
+                <div>Builder: <span class="text-white">Lackson Chisala</span></div>
             </div>
         </div>
     </footer>

@@ -22,7 +22,22 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $userObj = new User();
         
-        if ($_POST['action'] === 'verify_user') {
+        if ($_POST['action'] === 'send_email') {
+            $user_id = $_POST['user_id'];
+            $email = $_POST['email'];
+            $subject = $_POST['subject'];
+            $message = $_POST['message'];
+            
+            require_once '../includes/SimpleMailer.php';
+            $mailer = new SimpleMailer();
+            
+            if ($mailer->send($email, $subject, nl2br(htmlspecialchars($message)))) {
+                $success_msg = "Email sent successfully to $email.";
+                $logger->log($_SESSION['user_id'], 'admin', 'send_email', "Sent email to user ID: $user_id. Subject: $subject");
+            } else {
+                $error_msg = "Failed to send email.";
+            }
+        } elseif ($_POST['action'] === 'verify_user') {
             $user_id = $_POST['user_id'];
             $status = $_POST['verification_status']; // 1 or 0
             
@@ -225,13 +240,30 @@ try {
                                             <?php endif; ?>
                                         </td>
                                         <td>
-                                            <?php if($user['is_verified']): ?>
-                                                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Verified</span>
+                                            <!-- Email Verification Status -->
+                                            <?php if(empty($user['verification_token'])): ?>
+                                                <div class="mb-1">
+                                                    <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill">
+                                                        <i class="bi bi-envelope-check-fill me-1"></i>Email Verified
+                                                    </span>
+                                                </div>
                                             <?php else: ?>
-                                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill">Unverified</span>
+                                                <div class="mb-1">
+                                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill">
+                                                        <i class="bi bi-envelope-exclamation me-1"></i>Email Pending
+                                                    </span>
+                                                </div>
                                             <?php endif; ?>
+
+                                            <!-- Identity/Account Status -->
+                                            <?php if($user['is_verified']): ?>
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">ID Verified</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill">ID Unverified</span>
+                                            <?php endif; ?>
+                                            
                                             <?php if(!empty($user['is_banned'])): ?>
-                                                <span class="badge bg-danger">Banned</span>
+                                                <div class="mt-1"><span class="badge bg-danger">Banned</span></div>
                                             <?php endif; ?>
                                         </td>
                                         <td class="text-muted small"><?php echo date('M d, Y', strtotime($user['created_at'])); ?></td>
@@ -401,9 +433,48 @@ try {
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer justify-content-between">
+                    <button type="button" class="btn btn-outline-primary" onclick="openEmailModal()">
+                        <i class="bi bi-envelope"></i> Send Email
+                    </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Modal -->
+    <div class="modal fade" id="emailModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="action" value="send_email">
+                    <input type="hidden" name="user_id" id="email_user_id">
+                    <input type="hidden" name="email" id="email_user_email">
+                    
+                    <div class="modal-header">
+                        <h5 class="modal-title">Send Email</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">To:</label>
+                            <input type="text" class="form-control-plaintext fw-bold" id="email_display_to" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Subject</label>
+                            <input type="text" class="form-control" name="subject" required placeholder="Enter subject...">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Message</label>
+                            <textarea class="form-control" name="message" rows="5" required placeholder="Write your message here..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Send</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -430,6 +501,8 @@ try {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+    let currentUserData = null;
+
     function verifyUser(userId, status) {
         const action = status === 1 ? 'Verify' : 'Unverify';
         if (confirm(`Are you sure you want to ${action} this user?`)) {
@@ -439,7 +512,21 @@ try {
         }
     }
 
+    function openEmailModal() {
+        if (!currentUserData) return;
+        
+        document.getElementById('email_user_id').value = currentUserData.id;
+        document.getElementById('email_user_email').value = currentUserData.email;
+        document.getElementById('email_display_to').value = currentUserData.name + ' <' + currentUserData.email + '>';
+        
+        // Hide details modal, show email modal
+        bootstrap.Modal.getInstance(document.getElementById('userDetailsModal')).hide();
+        new bootstrap.Modal(document.getElementById('emailModal')).show();
+    }
+
     function viewUser(user) {
+        currentUserData = user;
+        
         // Basic Info
         document.getElementById('detail_name').innerText = user.name;
         document.getElementById('detail_email').innerText = user.email;
@@ -457,8 +544,19 @@ try {
         // Status
         const statusSpan = document.getElementById('detail_status');
         let statusHtml = '';
-        if (user.is_verified) statusHtml += '<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill me-1">Verified</span>';
-        else statusHtml += '<span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill me-1">Unverified</span>';
+        
+        // Email Verification
+        if (!user.verification_token) {
+            statusHtml += '<span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill me-1">Email Verified</span>';
+        } else {
+            statusHtml += '<span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill me-1">Email Pending</span>';
+        }
+
+        // Identity Verification (Dealers)
+        if (user.role === 'dealer') {
+            if (user.is_verified) statusHtml += '<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill me-1">ID Verified</span>';
+            else statusHtml += '<span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill me-1">ID Unverified</span>';
+        }
         
         if (user.is_banned == 1) statusHtml += '<span class="badge bg-danger">Banned</span>';
         else statusHtml += '<span class="badge bg-success">Active</span>';

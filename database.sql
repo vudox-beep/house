@@ -9,6 +9,10 @@ CREATE TABLE users (
     role ENUM('user', 'dealer', 'admin') DEFAULT 'user',
     whatsapp_number VARCHAR(20),
     profile_image VARCHAR(255),
+    verification_token VARCHAR(255) DEFAULT NULL,
+    token_expiry TIMESTAMP NULL DEFAULT NULL,
+    verification_doc VARCHAR(255) DEFAULT NULL,
+    identity_verified TINYINT(1) DEFAULT 0,
     is_verified BOOLEAN DEFAULT FALSE,
     is_banned BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

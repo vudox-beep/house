@@ -33,8 +33,28 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
             <h4 class="mb-0 fw-bold">Admin Panel</h4>
         </div>
         <div class="d-flex align-items-center">
-            <span class="me-3 fw-bold text-muted d-none d-md-block"><?php echo $_SESSION['user_name']; ?></span>
-            <img src="../assets/images/user-placeholder.png" class="rounded-circle" width="40" height="40" alt="Admin">
+            
+            <!-- Notification Manager Link -->
+            <a href="notifications.php" class="text-secondary text-decoration-none me-4 position-relative">
+                <i class="bi bi-bell-fill fs-4"></i>
+                <span class="position-absolute top-0 start-100 translate-middle p-1 bg-primary border border-light rounded-circle" style="font-size: 0.5rem;">
+                    <span class="visually-hidden">Manage</span>
+                </span>
+            </a>
+
+            <!-- Admin Profile Dropdown -->
+            <div class="dropdown">
+                <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
+                    <span class="me-2 fw-bold text-dark d-none d-md-block"><?php echo $_SESSION['user_name']; ?></span>
+                    <img src="../assets/images/user-placeholder.png" class="rounded-circle border" width="40" height="40" alt="Admin">
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
+                    <li><a class="dropdown-item" href="notifications.php"><i class="bi bi-megaphone me-2"></i> Send Notification</a></li>
+                    <li><a class="dropdown-item" href="settings.php"><i class="bi bi-gear me-2"></i> Settings</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="../logout.php"><i class="bi bi-box-arrow-right me-2"></i> Logout</a></li>
+                </ul>
+            </div>
         </div>
     </div>
 

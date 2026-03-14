@@ -9,6 +9,11 @@
             </a>
         </li>
         <li class="sidebar-item">
+            <a href="notifications.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'notifications.php' ? 'active' : ''; ?>">
+                <i class="bi bi-bell-fill"></i> Notifications
+            </a>
+        </li>
+        <li class="sidebar-item">
             <a href="transactions.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'transactions.php' ? 'active' : ''; ?>">
                 <i class="bi bi-wallet2"></i> Transactions
             </a>
@@ -31,6 +36,11 @@
         <li class="sidebar-item">
             <a href="reports.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'reports.php' ? 'active' : ''; ?>">
                 <i class="bi bi-graph-up-arrow"></i> Reports
+            </a>
+        </li>
+        <li class="sidebar-item">
+            <a href="notifications.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'notifications.php' ? 'active' : ''; ?>">
+                <i class="bi bi-bell-fill"></i> Notifications
             </a>
         </li>
         <li class="sidebar-item">
