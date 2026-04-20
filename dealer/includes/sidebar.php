@@ -50,10 +50,15 @@
             </li>
             <li class="sidebar-item">
                 <a href="leads.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'leads.php' ? 'active' : ''; ?> d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-chat-left-text-fill"></i> Leads</span>
+                    <span><i class="bi bi-envelope-open-fill"></i> Inquiries</span>
                     <?php if($newLeads > 0): ?>
                         <span class="badge bg-danger rounded-pill small"><?php echo $newLeads; ?></span>
                     <?php endif; ?>
+                </a>
+            </li>
+            <li class="sidebar-item">
+                <a href="messages.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'messages.php' ? 'active' : ''; ?>">
+                    <i class="bi bi-chat-dots-fill"></i> Live Chat
                 </a>
             </li>
             <li class="sidebar-item">
@@ -69,6 +74,11 @@
             <li class="sidebar-item">
                 <a href="payments.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'payments.php' ? 'active' : ''; ?>">
                     <i class="bi bi-receipt"></i> Payment History
+                </a>
+            </li>
+            <li class="sidebar-item">
+                <a href="referrals.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'referrals.php' ? 'active' : ''; ?>">
+                    <i class="bi bi-megaphone-fill"></i> Referrals
                 </a>
             </li>
             <li class="sidebar-item">

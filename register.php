@@ -1,35 +1,97 @@
 <?php
 require_once 'config/config.php';
 require_once 'models/User.php';
+require_once 'models/Referral.php';
 require_once 'includes/SimpleMailer.php';
 require_once 'includes/ActivityLogger.php';
 
 $error = '';
 $success = '';
+$referral_code_input = strtoupper(trim((string)($_GET['ref'] ?? '')));
+$referral_referrer = null;
+
+$referralModel = new Referral();
+if ($referral_code_input !== '') {
+    $referral_referrer = $referralModel->getDealerByCode($referral_code_input);
+}
+
+// Session-based Math CAPTCHA
+if (!isset($_SESSION['captcha_num1'])) {
+    $_SESSION['captcha_num1'] = rand(1, 9);
+    $_SESSION['captcha_num2'] = rand(1, 9);
+    $_SESSION['captcha_answer'] = $_SESSION['captcha_num1'] + $_SESSION['captcha_num2'];
+}
+
+// Session-based timing
+if (!isset($_SESSION['register_start_time'])) {
+    $_SESSION['register_start_time'] = time();
+}
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $user = new User();
-    $logger = new ActivityLogger();
-    
-    $name = $_POST['name'];
-    $email = $_POST['email'];
-    $password = $_POST['password'];
-    $confirm_password = $_POST['confirm_password'];
-    
-    $phone = $_POST['phone'] ?? '';
-    $role = $_POST['role'] ?? 'user';
-    $whatsapp_number = $_POST['whatsapp_number'] ?? '';
-
-    if ($password !== $confirm_password) {
-        $error = "Passwords do not match.";
-    } elseif ($user->emailExists($email)) {
-        $error = "Email already registered.";
+    // CSRF
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = "Session expired. Please refresh and try again.";
+    }
+    // Honeypots
+    elseif (!empty($_POST['company_name_optional']) || !empty($_POST['secondary_email'])) {
+        $error = "Invalid submission detected.";
+    }
+    // Math CAPTCHA
+    elseif (!isset($_POST['math_captcha']) || (int)$_POST['math_captcha'] !== $_SESSION['captcha_answer']) {
+        $error = "Incorrect math answer. Are you a bot?";
+    }
+    // Submission time (min 3s)
+    elseif (time() - $_SESSION['register_start_time'] < 3) {
+        $error = "You are submitting too fast. Please take a moment.";
     } else {
-        // Generate Verification Token
-        $token = bin2hex(random_bytes(32));
-        $expiry = date('Y-m-d H:i:s', strtotime('+3 minutes'));
+        // Basic rate limit per session: 10 registrations per 10 minutes
+        check_rate_limit('register', 10, 600);
 
-        $data = [
+        $user = new User();
+        $logger = new ActivityLogger();
+        
+        $name = sanitize_input($_POST['name']);
+        $email = sanitize_input($_POST['email']);
+        $password = $_POST['password'];
+        $confirm_password = $_POST['confirm_password'];
+        
+        $phone = sanitize_input($_POST['phone'] ?? '');
+        $role = sanitize_input($_POST['role'] ?? 'user');
+        $whatsapp_number = sanitize_input($_POST['whatsapp_number'] ?? '');
+        $referral_code_input = strtoupper(trim((string)sanitize_input($_POST['referral_code'] ?? $referral_code_input)));
+        $referral_referrer = null;
+
+        if ($role === 'dealer' && $referral_code_input !== '') {
+            $referral_referrer = $referralModel->getDealerByCode($referral_code_input);
+            if (!$referral_referrer) {
+                $error = "Invalid referral code. Please check and try again.";
+            }
+        }
+
+        // Email domain MX check
+        $emailParts = explode('@', $email);
+        if (count($emailParts) !== 2 || !checkdnsrr($emailParts[1], 'MX')) {
+            $error = "Please use a valid email address.";
+        }
+        // Password confirmation
+        elseif ($password !== $confirm_password) {
+            $error = "Passwords do not match.";
+        }
+        // Basic password strength
+        elseif (strlen($password) < 8) {
+            $error = "Password must be at least 8 characters.";
+        }
+        // Existing email
+        elseif ($user->emailExists($email)) {
+            $error = "Email already registered.";
+        }
+
+        if (!$error) {
+            // Generate Verification Token
+            $token = bin2hex(random_bytes(32));
+            $expiry = date('Y-m-d H:i:s', strtotime('+24 hours'));
+
+            $data = [
             'name' => $name,
             'email' => $email,
             'password' => $password,
@@ -53,6 +115,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $newUser = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($newUser) {
                 $logger->log($newUser['id'], $role, 'register', "New user registered: $email ($role)");
+
+                if ($role === 'dealer') {
+                    $referralModel->ensureDealerReferralCode((int)$newUser['id'], $name);
+
+                    if (!empty($referral_referrer) && (int)$referral_referrer['id'] !== (int)$newUser['id']) {
+                        $referralModel->attachReferrer((int)$newUser['id'], (int)$referral_referrer['id']);
+                    }
+                }
             }
 
             // Send Email
@@ -107,10 +177,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             } else {
                 $success = "Registration successful, but failed to send email.";
             }
-        } else {
-            $error = "Something went wrong. Please try again.";
+            } else {
+                $error = "Something went wrong. Please try again.";
+            }
         }
     }
+    
+    // Regenerate CAPTCHA & Timer for next attempt after a POST
+    $_SESSION['captcha_num1'] = rand(1, 9);
+    $_SESSION['captcha_num2'] = rand(1, 9);
+    $_SESSION['captcha_answer'] = $_SESSION['captcha_num1'] + $_SESSION['captcha_num2'];
+    $_SESSION['register_start_time'] = time();
 }
 ?>
 
@@ -157,6 +234,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <!-- Left Side: Marketing -->
             <div class="col-lg-6">
                 <div class="auth-left h-100">
+                    <div class="mb-3">
+                        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fw-semibold">
+                            <i class="bi bi-stars me-1"></i> Welcome to <?php echo SITE_NAME; ?>
+                        </span>
+                    </div>
                     <h1>Find your dream home <br><span class="text-highlight">faster than ever.</span></h1>
                     <p class="lead text-muted mb-5">Join thousands of happy renters who found their perfect living space through <?php echo SITE_NAME; ?>.</p>
                     
@@ -227,7 +309,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <div class="alert alert-success"><?php echo $success; ?></div>
                         <?php endif; ?>
 
-                        <form method="POST" action="">
+                        <form method="POST" action="register.php<?php echo !empty($referral_code_input) ? '?ref=' . urlencode($referral_code_input) : ''; ?>">
+                            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                            <!-- Honeypots -->
+                            <input type="text" name="company_name_optional" value="" style="display:none !important;" tabindex="-1" autocomplete="off">
+                            <div style="position: absolute; left: -9999px;" aria-hidden="true">
+                                <input type="text" name="secondary_email" tabindex="-1" autocomplete="off">
+                            </div>
+                            
                             <div class="mb-3">
                                 <label class="form-label fw-bold small">Full Name</label>
                                 <div class="input-group">
@@ -260,6 +349,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>
 
                             <div class="mb-3">
+                                <label class="form-label fw-bold small">Referral Code (Optional)</label>
+                                <input type="text" class="form-control" name="referral_code" placeholder="Enter dealer referral code" value="<?php echo htmlspecialchars($referral_code_input); ?>">
+                                <?php if (!empty($referral_code_input) && $referral_referrer): ?>
+                                    <div class="form-text text-success">Invited by <?php echo htmlspecialchars($referral_referrer['name']); ?>.</div>
+                                <?php elseif (!empty($referral_code_input)): ?>
+                                    <div class="form-text text-danger">Referral code not found.</div>
+                                <?php endif; ?>
+                            </div>
+
+                            <div class="mb-3">
                                 <label class="form-label fw-bold small">Password</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-lock"></i></span>
@@ -272,6 +371,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <div class="input-group">
                                     <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-lock-fill"></i></span>
                                     <input type="password" class="form-control border-start-0 ps-0" name="confirm_password" placeholder="••••••••" required>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label fw-bold small">Security Check: What is <?php echo $_SESSION['captcha_num1']; ?> + <?php echo $_SESSION['captcha_num2']; ?>?</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-shield-check"></i></span>
+                                    <input type="number" class="form-control border-start-0 ps-0" name="math_captcha" placeholder="Answer" required>
                                 </div>
                             </div>
 

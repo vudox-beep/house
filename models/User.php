@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../config/db.php';
 
 require_once __DIR__ . '/../includes/SimpleMailer.php';
+require_once __DIR__ . '/Referral.php';
 
 class User {
     private $conn;
@@ -139,6 +140,11 @@ class User {
             $updateStmt = $this->conn->prepare($updateQuery);
             $updateStmt->bindParam(':id', $user['id']);
             if ($updateStmt->execute()) {
+                // Referral crediting runs only after successful email verification.
+                if (strtolower((string)$user['role']) === 'dealer') {
+                    $referral = new Referral();
+                    $referral->creditOnVerifiedDealerRegistration((int)$user['id']);
+                }
                 
                 // Send "Thank You" Email
                 $mailer = new SimpleMailer();

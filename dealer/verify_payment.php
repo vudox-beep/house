@@ -3,6 +3,7 @@ require_once '../config/config.php';
 require_once '../includes/auth_check.php';
 require_once '../models/User.php';
 require_once '../models/Property.php'; // Fix: Include Property Model
+require_once '../models/Referral.php';
 require_once '../includes/LencoAPI.php';
 
 check_dealer();
@@ -70,10 +71,14 @@ try {
 
 if ($is_valid) {
     $user = new User();
+    $referralModel = new Referral();
     // Set expiry to 30 days from now
     $expiry = date('Y-m-d H:i:s', strtotime('+30 days'));
     
     if ($user->updateSubscription($_SESSION['user_id'], 'active', $expiry)) {
+        // Pay 30% commission to referrer for first subscription
+        $referralModel->processSubscriptionCommission((int)$_SESSION['user_id'], $amount);
+
         // Feature all existing properties for this user
         try {
             $prop = new Property();

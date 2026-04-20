@@ -3,6 +3,9 @@ require_once '../config/config.php';
 require_once '../models/User.php';
 require_once '../models/Property.php';
 
+// Set timezone to Lusaka (UTC+2) for correct date display
+date_default_timezone_set('Africa/Lusaka');
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -37,69 +40,131 @@ try {
     $recent_transactions = [];
     $transactions_exist = $pdo->query("SHOW TABLES LIKE 'transactions'")->rowCount() > 0;
 
-    // Get Total Revenue
+    // Initialize amounts
     $total_revenue = 0;
-    if ($transactions_exist) {
-        $stmt = $pdo->query("SELECT SUM(amount) FROM transactions WHERE status = 'successful'");
-        $total_revenue = $stmt->fetchColumn() ?: 0;
-    }
+    $amounts_source = 'live'; // Track where amounts come from
     
-    // Get Recent Transactions from Lenco Live
+    // Get ALL transactions from Lenco Live to compute accurate totals
     require_once '../includes/LencoAPI.php';
     $lenco = new LencoAPI();
-    $response = $lenco->getCollections(1); // Page 1
-    $lenco_transactions = [];
-
-    if (isset($response['status']) && $response['status'] === true) {
-        $raw_transactions = $response['data'] ?? [];
-        $raw_transactions = array_slice($raw_transactions, 0, 5); // Limit to 5
+    
+    $all_lenco_transactions = [];
+    $lenco_api_success = false;
+    $lenco_page = 1;
+    $max_pages = 50; // Safety limit to prevent infinite loops
+    
+    // Fetch all pages from Lenco to get complete transaction history
+    while ($lenco_page <= $max_pages) {
+        $response = $lenco->getCollections($lenco_page);
         
-        foreach($raw_transactions as $ltxn) {
-            $ref = $ltxn['reference'] ?? '';
+        if (isset($response['status']) && $response['status'] === true) {
+            $lenco_api_success = true;
+            $page_data = $response['data'] ?? [];
             
-            // Try to find user in local DB
-            $user_name = 'External Client';
-            $user_contact = 'Unknown';
-            
-            if (isset($ltxn['mobileMoneyDetails']['phone'])) {
-                $user_contact = $ltxn['mobileMoneyDetails']['phone'];
-            } elseif (isset($ltxn['cardDetails']['last4'])) {
-                $user_contact = 'Card ****' . $ltxn['cardDetails']['last4'];
+            if (empty($page_data)) {
+                break; // No more data
             }
             
-            if ($ref) {
-                $stmt = $pdo->prepare("SELECT u.name, u.email FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.reference = :ref LIMIT 1");
-                $stmt->execute([':ref' => $ref]);
-                $user = $stmt->fetch(PDO::FETCH_ASSOC);
-                if ($user) {
-                    $user_name = $user['name'];
-                    $user_contact = $user['email'];
-                }
+            $all_lenco_transactions = array_merge($all_lenco_transactions, $page_data);
+            $lenco_page++;
+        } else {
+            // API call failed - if we got at least some data, use it
+            if ($lenco_page > 1) {
+                $lenco_api_success = true; // We got partial data
             }
-
-            $lenco_transactions[] = [
-                'reference' => $ref,
-                'user_name' => $user_name,
-                'user_email' => $user_contact,
-                'currency' => $ltxn['currency'] ?? 'ZMW',
-                'amount' => $ltxn['amount'] ?? 0,
-                'status' => $ltxn['status'] ?? 'pending',
-                'created_at' => $ltxn['createdAt'] ?? date('Y-m-d H:i:s')
-            ];
+            break;
         }
     }
     
-    // Fallback if API fails or is empty, use empty array (or local DB if preferred, but user asked for live lenco)
+    // Calculate Total Revenue from LIVE Lenco data (only successful/completed)
+    if ($lenco_api_success && !empty($all_lenco_transactions)) {
+        foreach ($all_lenco_transactions as $ltxn) {
+            $txn_status = strtolower($ltxn['status'] ?? '');
+            if ($txn_status === 'successful' || $txn_status === 'completed') {
+                $total_revenue += floatval($ltxn['amount'] ?? 0);
+            }
+        }
+    } else {
+        // Fallback to local DB ONLY if Lenco API completely fails
+        $amounts_source = 'local';
+        if ($transactions_exist) {
+            $stmt = $pdo->query("SELECT SUM(amount) FROM transactions WHERE status = 'successful' OR status = 'completed'");
+            $total_revenue = $stmt->fetchColumn() ?: 0;
+        }
+    }
+    
+    // Get Recent Transactions (latest 5 from Lenco)
+    $recent_lenco = array_slice($all_lenco_transactions, 0, 5);
+    $lenco_transactions = [];
+
+    foreach($recent_lenco as $ltxn) {
+        $ref = $ltxn['reference'] ?? '';
+        
+        // Try to find user in local DB
+        $user_name = 'External Client';
+        $user_contact = 'Unknown';
+        
+        if (isset($ltxn['mobileMoneyDetails']['phone'])) {
+            $user_contact = $ltxn['mobileMoneyDetails']['phone'];
+        } elseif (isset($ltxn['cardDetails']['last4'])) {
+            $user_contact = 'Card ****' . $ltxn['cardDetails']['last4'];
+        }
+        
+        if ($ref) {
+            $stmt = $pdo->prepare("SELECT u.name, u.email FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.reference = :ref LIMIT 1");
+            $stmt->execute([':ref' => $ref]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($user) {
+                $user_name = $user['name'];
+                $user_contact = $user['email'];
+            }
+        }
+
+        // Get the date from whichever field Lenco uses
+        $txn_date_raw = $ltxn['createdAt'] 
+            ?? $ltxn['created_at'] 
+            ?? $ltxn['date'] 
+            ?? $ltxn['transactionDate'] 
+            ?? $ltxn['updatedAt'] 
+            ?? null;
+        
+        // If no date field found, extract timestamp from reference (e.g. SUB-1776697138090)
+        if (!$txn_date_raw && $ref) {
+            if (preg_match('/(\d{10,13})/', $ref, $matches)) {
+                $ts = (int)$matches[1];
+                // If milliseconds (13 digits), convert to seconds
+                if ($ts > 9999999999) {
+                    $ts = intval($ts / 1000);
+                }
+                $txn_date_raw = date('Y-m-d\TH:i:s.000\Z', $ts);
+            }
+        }
+        
+        // Final fallback
+        if (!$txn_date_raw) {
+            $txn_date_raw = date('Y-m-d H:i:s');
+        }
+
+        $lenco_transactions[] = [
+            'reference' => $ref,
+            'user_name' => $user_name,
+            'user_email' => $user_contact,
+            'currency' => $ltxn['currency'] ?? 'ZMW',
+            'amount' => $ltxn['amount'] ?? 0,
+            'status' => $ltxn['status'] ?? 'pending',
+            'created_at' => $txn_date_raw
+        ];
+    }
+    
     $recent_transactions = $lenco_transactions;
+    $last_updated = date('H:i:s');
 
     // Get Actual Account Balance (Settlements)
     $account_balance = 0;
+    $balance_source = 'live';
     
-    // We try to fetch the actual wallet/settlement balance, not just sum of transactions.
+    // Try to fetch the actual wallet/settlement balance from Lenco
     $balance_response = $lenco->getBalance();
-    
-    // Debugging (Remove in production if needed, but useful for user)
-    // error_log(print_r($balance_response, true)); 
     
     if (isset($balance_response['status']) && $balance_response['status'] === true) {
         // Check standard Lenco account structure
@@ -110,18 +175,14 @@ try {
         } elseif (isset($balance_response['data']['currentBalance'])) {
              $account_balance = $balance_response['data']['currentBalance'];
         } else {
-             // Fallback to transaction sum if API structure is unexpected
-             if ($transactions_exist) {
-                $stmt = $pdo->query("SELECT SUM(amount) FROM transactions WHERE status = 'successful' OR status = 'completed'");
-                $account_balance = $stmt->fetchColumn() ?: 0;
-            }
+             // If balance API returns unexpected structure, use live revenue as balance
+             $account_balance = $total_revenue;
+             $balance_source = 'calculated';
         }
     } else {
-         // Fallback to DB sum
-         if ($transactions_exist) {
-            $stmt = $pdo->query("SELECT SUM(amount) FROM transactions WHERE status = 'successful' OR status = 'completed'");
-            $account_balance = $stmt->fetchColumn() ?: 0;
-        }
+         // If balance API fails entirely, use the live revenue total
+         $account_balance = $total_revenue;
+         $balance_source = 'calculated';
     }
 
 } catch (PDOException $e) {
@@ -231,6 +292,11 @@ try {
                     </div>
                     <div class="mt-2 pt-2 border-top small">
                          <span class="text-muted">Total Revenue: K <?php echo number_format($total_revenue, 2); ?></span>
+                         <?php if ($amounts_source === 'local'): ?>
+                            <span class="badge bg-warning-subtle text-warning ms-1" title="Lenco API unavailable, showing local data">Local</span>
+                         <?php else: ?>
+                            <span class="badge bg-success-subtle text-success ms-1" title="Updated at <?php echo $last_updated; ?>">Live</span>
+                         <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -284,8 +350,12 @@ try {
                                             <?php endif; ?>
                                         </td>
                                         <td class="text-muted small">
-                                            <div><?php echo date('M d, Y', strtotime($txn['created_at'])); ?></div>
-                                            <div class="text-xs opacity-75"><?php echo date('H:i A', strtotime($txn['created_at'])); ?></div>
+                                            <?php 
+                                                $txn_date = new DateTime($txn['created_at'], new DateTimeZone('UTC'));
+                                                $txn_date->setTimezone(new DateTimeZone('Africa/Lusaka'));
+                                            ?>
+                                            <div><?php echo $txn_date->format('M d, Y'); ?></div>
+                                            <div class="text-xs opacity-75"><?php echo $txn_date->format('H:i A'); ?></div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>

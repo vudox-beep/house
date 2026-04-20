@@ -1,24 +1,34 @@
-Options -Indexes
+houseforrent.site/loginOptions -Indexes -MultiViews
 RewriteEngine On
-RewriteBase /house/
+
+# Use "/" if the site is at the root domain (e.g., houseforrent.site)
+# Use "/house/" if testing locally (e.g., localhost/house)
+# Since you are deploying to the live server:
+RewriteBase /
 
 # Security: Block sensitive files
 <FilesMatch "\.(htaccess|htpasswd|ini|log|sh|inc|bak|sql)$">
     Require all denied
 </FilesMatch>
 
-# 1. Custom Routes (Specific Clean URLs)
+# ----------------------------------------------------------------------
+# 1. EXTERNAL REDIRECT (Remove .php from URL in browser)
+# ----------------------------------------------------------------------
+RewriteCond %{REQUEST_METHOD} !POST
+RewriteCond %{THE_REQUEST} ^[A-Z]{3,}\s([^.]+)\.php [NC]
+RewriteRule ^ %1 [R=301,L]
+
+# ----------------------------------------------------------------------
+# 2. INTERNAL REWRITE (Map clean URLs to .php files)
+# ----------------------------------------------------------------------
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.+?)/?$ $1.php [L]
+
+# ----------------------------------------------------------------------
+# 3. Custom Routes (Optional specific overrides)
+# ----------------------------------------------------------------------
 RewriteRule ^dashboard/?$ route_dashboard.php [L]
 RewriteRule ^login/?$ login.php [L]
 RewriteRule ^register/?$ register.php [L]
 RewriteRule ^logout/?$ logout.php [L]
-
-# 2. Generic Rule: Remove .php extension
-# If the request is not a directory, and the .php file exists
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_FILENAME}.php -f
-RewriteRule ^(.*)$ $1.php [L]
-
-# 3. Optional: Force removal of .php in browser (Redirect)
-# RewriteCond %{THE_REQUEST} ^[A-Z]{3,}\s([^.]+)\.php [NC]
-# RewriteRule ^ %1 [R=301,L]

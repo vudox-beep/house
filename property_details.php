@@ -561,17 +561,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                         </a>
                     <?php endif; ?>
 
-                    <button class="btn-contact btn-live-chat">
-                        <i class="bi bi-chat-dots-fill"></i> Live Chat
-                    </button>
-                    
                     <?php if(isset($_SESSION['user_id'])): ?>
+                        <?php 
+                            $chat_url = '';
+                            if ($_SESSION['user_role'] === 'user') {
+                                $chat_url = "tenant/messages.php?dealer_id=" . $property['dealer_id'] . "&property_id=" . $property['id'];
+                            } else if ($_SESSION['user_role'] === 'dealer') {
+                                $chat_url = "dealer/messages.php?dealer_id=" . $property['dealer_id'] . "&property_id=" . $property['id'];
+                            } else {
+                                $chat_url = "admin/dashboard.php";
+                            }
+                        ?>
+                        <a href="<?php echo $chat_url; ?>" class="btn-contact btn-live-chat text-decoration-none">
+                            <i class="bi bi-chat-dots-fill"></i> Live Chat
+                        </a>
                         <button class="btn-contact btn-light border mt-2 w-100 favorite-btn" onclick="toggleFavorite(<?php echo $property['id']; ?>)">
                             <i class="bi <?php echo $is_saved ? 'bi-heart-fill' : 'bi-heart'; ?>"></i> 
                             <span class="save-text"><?php echo $is_saved ? 'Saved' : 'Save Property'; ?></span>
                         </button>
                     <?php else: ?>
-                        <a href="login.php" class="btn-contact btn-light border mt-2 w-100 text-decoration-none d-block text-center">
+                        <?php 
+                            // Construct safe redirect URL
+                            $redirect_url = "property_details.php?id=" . urlencode($raw_id);
+                        ?>
+                        <a href="../login.php?redirect=<?php echo urlencode($redirect_url); ?>" class="btn-contact btn-live-chat text-decoration-none" onclick="alert('Please login first to chat with the landlord.');">
+                            <i class="bi bi-chat-dots-fill"></i> Login to Chat
+                        </a>
+                        <a href="../login.php?redirect=<?php echo urlencode($redirect_url); ?>" class="btn-contact btn-light border mt-2 w-100 text-decoration-none d-block text-center">
                             <i class="bi bi-heart"></i> Save Property
                         </a>
                     <?php endif; ?>
@@ -708,7 +724,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
             </div>
             <hr class="border-secondary my-4">
             <div class="d-flex justify-content-between align-items-center small text-muted">
-                <div>&copy; <?php echo date('Y'); ?> <?php echo SITE_NAME; ?>. All rights reserved. <span class="fw-bold">Owned by <?php echo OWNER_NAME; ?>.</span></div>
+                <div>&copy; <?php echo date('Y'); ?> <?php echo SITE_NAME; ?>. All rights reserved. <span class="fw-bold">Owned by <?php echo defined('OWNER_NAME') ? OWNER_NAME : 'Site Owner'; ?>.</span></div>
                 <div>Builder: <span class="text-white">Lucky Chisala</span></div>
             </div>
         </div>

@@ -19,7 +19,61 @@ $filters = [
     'longitude' => $_GET['longitude'] ?? ''
 ];
 
+$selectedSection = $_GET['section'] ?? '';
+$sectionMap = [
+    'boarding_house_rent' => ['property_type' => 'boarding_house', 'listing_purpose' => 'rent'],
+    'house_rent' => ['property_type' => 'house', 'listing_purpose' => 'rent'],
+    'apartment_rent' => ['property_type' => 'apartment', 'listing_purpose' => 'rent'],
+    'land_sale' => ['property_type' => 'land', 'listing_purpose' => 'sale'],
+    'all_sale' => ['property_type' => '', 'listing_purpose' => 'sale'],
+    'all_booking' => ['property_type' => '', 'listing_purpose' => 'booking'],
+    'all_service' => ['property_type' => '', 'listing_purpose' => 'service']
+];
+
+if (!empty($selectedSection) && isset($sectionMap[$selectedSection])) {
+    $filters['property_type'] = $sectionMap[$selectedSection]['property_type'];
+    $filters['listing_purpose'] = $sectionMap[$selectedSection]['listing_purpose'];
+}
+
 $properties = $propertyModel->search($filters);
+
+$purposeLabels = [
+    'rent' => 'For Rent',
+    'sale' => 'For Sale',
+    'booking' => 'For Booking',
+    'service' => 'Service'
+];
+
+$typeLabels = [
+    'apartment' => 'Apartment',
+    'house' => 'House',
+    'villa' => 'Villa',
+    'cottage' => 'Cottage',
+    'studio' => 'Studio',
+    'flat' => 'Flat',
+    'boarding_house' => 'Boarding House',
+    'manor' => 'Manor',
+    'wedding_venue' => 'Wedding Venue',
+    'restaurant' => 'Restaurant',
+    'lodge' => 'Lodge',
+    'commercial' => 'Commercial',
+    'land' => 'Land'
+];
+
+$groupedProperties = [];
+foreach ($properties as $property) {
+    $purpose = $property['listing_purpose'] ?? 'rent';
+    $type = $property['property_type'] ?? 'property';
+    $groupKey = $purpose . '|' . $type;
+    $groupTitle = ($purposeLabels[$purpose] ?? ucfirst(str_replace('_', ' ', $purpose))) . ' - ' . ($typeLabels[$type] ?? ucfirst(str_replace('_', ' ', $type)));
+    if (!isset($groupedProperties[$groupKey])) {
+        $groupedProperties[$groupKey] = [
+            'title' => $groupTitle,
+            'items' => []
+        ];
+    }
+    $groupedProperties[$groupKey]['items'][] = $property;
+}
 ?>
 
 <!DOCTYPE html>
@@ -140,13 +194,27 @@ $properties = $propertyModel->search($filters);
                                 </select>
                             </div>
 
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold small text-uppercase">Section</label>
+                                <select class="form-select form-select-sm" name="section">
+                                    <option value="">All Sections</option>
+                                    <option value="boarding_house_rent" <?php echo ($selectedSection == 'boarding_house_rent') ? 'selected' : ''; ?>>Boarding House Rent</option>
+                                    <option value="house_rent" <?php echo ($selectedSection == 'house_rent') ? 'selected' : ''; ?>>House Rent</option>
+                                    <option value="apartment_rent" <?php echo ($selectedSection == 'apartment_rent') ? 'selected' : ''; ?>>Apartment Rent</option>
+                                    <option value="land_sale" <?php echo ($selectedSection == 'land_sale') ? 'selected' : ''; ?>>Land Sale</option>
+                                    <option value="all_sale" <?php echo ($selectedSection == 'all_sale') ? 'selected' : ''; ?>>All Sale Listings</option>
+                                    <option value="all_booking" <?php echo ($selectedSection == 'all_booking') ? 'selected' : ''; ?>>All Booking Listings</option>
+                                    <option value="all_service" <?php echo ($selectedSection == 'all_service') ? 'selected' : ''; ?>>All Service Listings</option>
+                                </select>
+                            </div>
+
                             <!-- Category -->
                             <div class="col-md-3">
                                 <label class="form-label fw-bold small text-uppercase">Category</label>
                                 <select class="form-select form-select-sm" name="property_type">
                                     <option value="">All Categories</option>
                                     <?php 
-                                    $types = ['apartment', 'house', 'villa', 'cottage', 'studio', 'flat', 'boarding_house', 'manor', 'wedding_venue', 'restaurant', 'lodge', 'commercial'];
+                                    $types = ['apartment', 'house', 'villa', 'cottage', 'studio', 'flat', 'boarding_house', 'land', 'manor', 'wedding_venue', 'restaurant', 'lodge', 'commercial'];
                                     foreach($types as $type): 
                                     ?>
                                         <option value="<?php echo $type; ?>" <?php echo ($filters['property_type'] == $type) ? 'selected' : ''; ?>>
@@ -211,70 +279,68 @@ $properties = $propertyModel->search($filters);
 
         <!-- Property Grid -->
         <?php if(count($properties) > 0): ?>
-            <div class="row g-3"> <!-- g-3 for tighter grid -->
-                <?php foreach($properties as $property): ?>
-                    <?php 
-                        $main_image = 'https://placehold.co/600x400?text=No+Image';
-                        $images = $propertyModel->getImages($property['id']);
-                        if(count($images) > 0) $main_image = $images[0]['image_path'];
-                    ?>
-                    <div class="col-6 col-md-4 col-lg-3"> <!-- 4 in a row on lg -->
-                        <div class="card listing-card h-100 border-0 shadow-sm">
-                            <div class="listing-img-wrapper position-relative">
-                                <a href="property_details.php?id=<?php echo $property['id']; ?>">
-                                    <img src="<?php echo $main_image; ?>" class="listing-img" alt="<?php echo htmlspecialchars($property['title']); ?>">
-                                </a>
-                                <span class="badge bg-white text-dark listing-badge position-absolute top-0 end-0 m-2 fw-bold small" style="font-size: 0.7rem;">
-                                    <?php echo ucfirst(str_replace('_', ' ', $property['property_type'])); ?> · 
-                                    <?php 
-                                        $purpose = $property['listing_purpose'] ?? 'rent';
-                                        if ($purpose == 'booking') echo 'Booking';
-                                        elseif ($purpose == 'service') echo 'Service';
-                                        elseif ($purpose == 'sale') echo 'Sale';
-                                        else echo 'Rent';
-                                    ?>
-                                </span>
-                                <?php if($property['is_featured']): ?>
-                                    <span class="badge bg-warning text-dark position-absolute top-0 start-0 m-2 fw-bold small" style="font-size: 0.7rem; z-index: 1;">Featured</span>
-                                <?php endif; ?>
-                            </div>
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between mb-1">
-                                    <span class="text-price fw-bold text-primary" style="font-size: 0.95rem;">
+            <?php foreach($groupedProperties as $group): ?>
+                <div class="d-flex justify-content-between align-items-center mb-3 mt-4">
+                    <h5 class="fw-bold mb-0"><?php echo htmlspecialchars($group['title']); ?></h5>
+                    <span class="badge bg-primary-subtle text-primary"><?php echo count($group['items']); ?> listings</span>
+                </div>
+                <div class="row g-3">
+                    <?php foreach($group['items'] as $property): ?>
+                        <?php 
+                            $main_image = 'https://placehold.co/600x400?text=No+Image';
+                            $images = $propertyModel->getImages($property['id']);
+                            if(count($images) > 0) $main_image = $images[0]['image_path'];
+                        ?>
+                        <div class="col-6 col-md-4 col-lg-3">
+                            <div class="card listing-card h-100 border-0 shadow-sm">
+                                <div class="listing-img-wrapper position-relative">
+                                    <a href="property_details.php?id=<?php echo $property['id']; ?>">
+                                        <img src="<?php echo $main_image; ?>" class="listing-img" alt="<?php echo htmlspecialchars($property['title']); ?>">
+                                    </a>
+                                    <span class="badge bg-white text-dark listing-badge position-absolute top-0 end-0 m-2 fw-bold small" style="font-size: 0.7rem;">
+                                        <?php echo ucfirst(str_replace('_', ' ', $property['property_type'])); ?> · 
                                         <?php 
-                                            if(in_array($property['property_type'], ['wedding_venue', 'commercial', 'studio'])) {
-                                                echo $property['currency'] . ' ' . number_format($property['price']);
-                                            } elseif ($property['property_type'] == 'restaurant') {
-                                                echo $property['currency'] . ' ' . number_format($property['price']);
-                                            } else {
-                                                echo $property['currency'] . ' ' . number_format($property['price']);
-                                            }
+                                            $purpose = $property['listing_purpose'] ?? 'rent';
+                                            if ($purpose == 'booking') echo 'Booking';
+                                            elseif ($purpose == 'service') echo 'Service';
+                                            elseif ($purpose == 'sale') echo 'Sale';
+                                            else echo 'Rent';
                                         ?>
                                     </span>
+                                    <?php if($property['is_featured']): ?>
+                                        <span class="badge bg-warning text-dark position-absolute top-0 start-0 m-2 fw-bold small" style="font-size: 0.7rem; z-index: 1;">Featured</span>
+                                    <?php endif; ?>
                                 </div>
-                                <h6 class="card-title mb-1 text-truncate">
-                                    <a href="property_details.php?id=<?php echo $property['id']; ?>" class="text-dark text-decoration-none">
-                                        <?php echo htmlspecialchars($property['title']); ?>
-                                    </a>
-                                </h6>
-                                <p class="text-muted small mb-2 text-truncate"><i class="bi bi-geo-alt"></i> <?php echo htmlspecialchars($property['location']); ?></p>
-                                
-                                <div class="listing-features d-flex justify-content-between pt-2 border-top align-items-center">
-                                    <span class="small text-muted" style="font-size: 0.7rem;" title="Bedrooms">
-                                        <i class="bi bi-people-fill text-warning"></i> <?php echo $property['bedrooms']; ?> <span class="d-none d-sm-inline">Beds</span>
-                                    </span>
-                                    <span class="small text-muted" style="font-size: 0.7rem;" title="Bathrooms">
-                                        <i class="bi bi-droplet-fill text-warning"></i> <?php echo $property['bathrooms']; ?> <span class="d-none d-sm-inline">Baths</span>
-                                    </span>
-                                    <span class="small text-muted" style="font-size: 0.7rem;" title="Size">
-                                        <i class="bi bi-aspect-ratio-fill text-warning"></i> <?php echo $property['size_sqm']; ?> m²
-                                    </span>
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="text-price fw-bold text-primary" style="font-size: 0.95rem;">
+                                            <?php echo $property['currency'] . ' ' . number_format($property['price']); ?>
+                                        </span>
+                                    </div>
+                                    <h6 class="card-title mb-1 text-truncate">
+                                        <a href="property_details.php?id=<?php echo $property['id']; ?>" class="text-dark text-decoration-none">
+                                            <?php echo htmlspecialchars($property['title']); ?>
+                                        </a>
+                                    </h6>
+                                    <p class="text-muted small mb-2 text-truncate"><i class="bi bi-geo-alt"></i> <?php echo htmlspecialchars($property['location']); ?></p>
+                                    
+                                    <div class="listing-features d-flex justify-content-between pt-2 border-top align-items-center">
+                                        <span class="small text-muted" style="font-size: 0.7rem;" title="Bedrooms">
+                                            <i class="bi bi-people-fill text-warning"></i> <?php echo $property['bedrooms']; ?> <span class="d-none d-sm-inline">Beds</span>
+                                        </span>
+                                        <span class="small text-muted" style="font-size: 0.7rem;" title="Bathrooms">
+                                            <i class="bi bi-droplet-fill text-warning"></i> <?php echo $property['bathrooms']; ?> <span class="d-none d-sm-inline">Baths</span>
+                                        </span>
+                                        <span class="small text-muted" style="font-size: 0.7rem;" title="Size">
+                                            <i class="bi bi-aspect-ratio-fill text-warning"></i> <?php echo $property['size_sqm']; ?> m²
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endforeach; ?>
         <?php else: ?>
             <div class="text-center py-5 bg-white rounded-3 shadow-sm">
                 <div class="mb-3"><i class="bi bi-search fs-1 text-muted opacity-50"></i></div>
@@ -335,7 +401,7 @@ $properties = $propertyModel->search($filters);
             </div>
             <hr class="border-secondary my-4">
             <div class="d-flex justify-content-between align-items-center small text-muted">
-                <div>&copy; <?php echo date('Y'); ?> <?php echo SITE_NAME; ?>. All rights reserved. <span class="fw-bold">Owned by <?php echo OWNER_NAME; ?>.</span></div>
+                <div>&copy; <?php echo date('Y'); ?> <?php echo SITE_NAME; ?>. All rights reserved. <span class="fw-bold">Owned by <?php echo defined('OWNER_NAME') ? OWNER_NAME : 'Site Owner'; ?>.</span></div>
                 <div>Builder: <span class="text-white">Lucky Chisala</span></div>
             </div>
         </div>

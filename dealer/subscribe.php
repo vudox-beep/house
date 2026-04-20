@@ -1,6 +1,7 @@
 <?php
 require_once '../config/config.php';
 require_once '../models/User.php';
+require_once '../models/Referral.php';
 
 // Include Header
 include 'includes/header.php';
@@ -15,7 +16,9 @@ if (!$user) {
 }
 
 $email = $user['email'];
-$amount = SUBSCRIPTION_FEE;
+$referralModel = new Referral();
+$discount = $referralModel->getDiscountForDealer((int)$_SESSION['user_id']);
+$amount = $discount['final_amount'];
 $currency = CURRENCY;
 ?>
 
@@ -51,7 +54,7 @@ $currency = CURRENCY;
                         <div class="position-absolute top-0 end-0 bg-warning text-dark px-3 py-1 fw-bold small rounded-bottom-start">RECOMMENDED</div>
                         <div class="card-body p-4 text-center d-flex flex-column">
                             <h5 class="fw-bold text-primary mb-3">Dealer Pro</h5>
-                            <h1 class="display-4 fw-bold mb-0"><?php echo $currency . ' ' . number_format($amount); ?></h1>
+                            <h1 class="display-4 fw-bold mb-0"><?php echo $currency . ' ' . number_format($amount, 2); ?></h1>
                             <p class="text-muted mb-4">Per Month</p>
                             <ul class="list-unstyled text-start mb-auto mx-auto" style="max-width: 250px;">
                                 <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i> Unlimited Listings</li>

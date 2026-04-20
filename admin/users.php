@@ -52,6 +52,64 @@ try {
             } catch (PDOException $e) {
                 $error_msg = "Database Error: " . $e->getMessage();
             }
+        } elseif ($_POST['action'] === 'resend_verification_email') {
+            $user_id = (int)($_POST['user_id'] ?? 0);
+
+            if ($user_id <= 0) {
+                $error_msg = "Invalid user selected.";
+            } else {
+                try {
+                    $stmt = $pdo->prepare("SELECT id, name, email, role, verification_token FROM users WHERE id = :id LIMIT 1");
+                    $stmt->execute([':id' => $user_id]);
+                    $targetUser = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                    if (!$targetUser) {
+                        $error_msg = "User not found.";
+                    } elseif (strtolower((string)$targetUser['role']) === 'admin') {
+                        $error_msg = "Verification resend is not available for admin accounts.";
+                    } elseif (empty($targetUser['verification_token'])) {
+                        $error_msg = "User email is already verified. No resend needed.";
+                    } else {
+                        $newToken = bin2hex(random_bytes(32));
+                        $newExpiry = date('Y-m-d H:i:s', strtotime('+24 hours'));
+
+                        $upd = $pdo->prepare("UPDATE users SET verification_token = :token, token_expiry = :expiry WHERE id = :id");
+                        $upd->execute([
+                            ':token' => $newToken,
+                            ':expiry' => $newExpiry,
+                            ':id' => $targetUser['id']
+                        ]);
+
+                        require_once '../includes/SimpleMailer.php';
+                        $mailer = new SimpleMailer();
+                        $verifyLink = SITE_URL . "/verify_email.php?token=" . $newToken;
+                        $subject = "Verify Your Account - " . SITE_NAME;
+                        $body = "
+                            <h2>Welcome to " . SITE_NAME . "!</h2>
+                            <p>Dear " . htmlspecialchars($targetUser['name']) . ",</p>
+                            <p>Please verify your email address by clicking the link below:</p>
+                            <a href='" . $verifyLink . "' style='display:inline-block;background:#fbbf24;color:#000;padding:10px 20px;text-decoration:none;border-radius:5px;'>Verify Email Address</a>
+                            <p>Or copy this link: " . $verifyLink . "</p>
+                            <p>This verification link will expire in 24 hours.</p>
+                            <p>If you did not request this, please ignore this email.</p>
+                        ";
+
+                        if ($mailer->send($targetUser['email'], $subject, $body)) {
+                            $success_msg = "Verification email resent successfully to " . htmlspecialchars($targetUser['email']) . ".";
+                            $logger->log(
+                                $_SESSION['user_id'],
+                                'admin',
+                                'resend_verification_email',
+                                "Resent verification email to {$targetUser['role']} ID: {$targetUser['id']}"
+                            );
+                        } else {
+                            $error_msg = "Failed to resend verification email.";
+                        }
+                    }
+                } catch (Throwable $e) {
+                    $error_msg = "Failed to resend verification email: " . $e->getMessage();
+                }
+            }
         } elseif ($_POST['action'] === 'update_subscription') {
             $user_id = $_POST['user_id'];
             $status = $_POST['subscription_status'];
@@ -102,9 +160,13 @@ try {
                      d.subscription_expiry,
                      d.company_name,
                      d.office_address,
-                     d.bio
+                     d.bio,
+                     d.referral_earnings,
+                     referrer.name as referrer_name,
+                     referrer.email as referrer_email
               FROM users u 
               LEFT JOIN dealers d ON u.id = d.user_id 
+              LEFT JOIN users referrer ON u.referred_by_user_id = referrer.id
               WHERE 1=1";
     $params = [];
 
@@ -190,6 +252,7 @@ try {
                             <tr>
                                 <th class="ps-4">User</th>
                                 <th>Role</th>
+                                <th>Referral Info</th>
                                 <th>Subscription</th>
                                 <th>Status</th>
                                 <th>Joined Date</th>
@@ -218,6 +281,24 @@ try {
                                                 <span class="badge bg-primary">Dealer</span>
                                             <?php else: ?>
                                                 <span class="badge bg-secondary">User</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if($user['referrer_name']): ?>
+                                                <div class="small fw-bold text-dark">Ref by: <?php echo htmlspecialchars($user['referrer_name']); ?></div>
+                                                <div class="small text-muted"><?php echo htmlspecialchars($user['referrer_email']); ?></div>
+                                            <?php else: ?>
+                                                <span class="text-muted small">Direct Signup</span>
+                                            <?php endif; ?>
+                                            
+                                            <?php if($user['role'] === 'dealer'): ?>
+                                                <div class="mt-1">
+                                                    <button class="btn btn-sm btn-link p-0 text-success fw-bold text-decoration-none" 
+                                                            onclick="showReferralPopUp(<?php echo $user['id']; ?>, '<?php echo addslashes($user['name']); ?>')">
+                                                        Earns: <?php echo CURRENCY . ' ' . number_format((float)($user['referral_earnings'] ?? 0), 2); ?>
+                                                        <i class="bi bi-box-arrow-up-right small ms-1"></i>
+                                                    </button>
+                                                </div>
                                             <?php endif; ?>
                                         </td>
                                         <td>
@@ -274,7 +355,7 @@ try {
                                                         title="Manage Subscription">
                                                     <i class="bi bi-credit-card"></i>
                                                 </button>
-                                                
+
                                                 <?php if(!$user['is_verified']): ?>
                                                     <button class="btn btn-sm btn-outline-success border me-1" 
                                                             onclick="verifyUser(<?php echo $user['id']; ?>, 1)"
@@ -288,6 +369,14 @@ try {
                                                         <i class="bi bi-x-circle"></i>
                                                     </button>
                                                 <?php endif; ?>
+                                            <?php endif; ?>
+
+                                            <?php if($user['role'] !== 'admin' && !empty($user['verification_token'])): ?>
+                                                <button class="btn btn-sm btn-outline-warning border me-1"
+                                                        onclick="resendVerificationEmail(<?php echo $user['id']; ?>)"
+                                                        title="Resend verification email">
+                                                    <i class="bi bi-arrow-repeat"></i>
+                                                </button>
                                             <?php endif; ?>
                                             
                                             <button class="btn btn-sm btn-light border me-1" 
@@ -428,6 +517,19 @@ try {
                                         <label class="small text-muted d-block">Bio</label>
                                         <p id="detail_bio" class="text-muted small bg-light p-2 rounded mt-1"></p>
                                     </div>
+                                    <div class="col-12 mt-3">
+                                        <h6 class="text-uppercase text-muted small fw-bold mb-2 border-bottom pb-1">Referral Program</h6>
+                                        <div class="row">
+                                            <div class="col-sm-6">
+                                                <label class="small text-muted d-block">Referrer</label>
+                                                <span id="detail_referrer" class="fw-medium"></span>
+                                            </div>
+                                            <div class="col-sm-6">
+                                                <label class="small text-muted d-block">Total Earnings</label>
+                                                <span id="detail_referral_earnings" class="fw-bold text-success"></span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -499,9 +601,121 @@ try {
         <input type="hidden" name="verification_status" id="verify_status">
     </form>
 
+    <!-- Resend Verification Email Form -->
+    <form id="resendVerificationForm" method="POST" style="display: none;">
+        <input type="hidden" name="action" value="resend_verification_email">
+        <input type="hidden" name="user_id" id="resend_verify_user_id">
+    </form>
+
+    <!-- Referral List Modal -->
+    <div class="modal fade" id="referralPopUpModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-people-fill me-2"></i>Referral Details: <span id="popup_dealer_name"></span></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded-3 text-center">
+                                <div class="text-muted small mb-1">Total Earnings</div>
+                                <h4 class="fw-bold text-success mb-0" id="popup_total_earnings"></h4>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded-3 text-center">
+                                <div class="text-muted small mb-1">Successful Referrals</div>
+                                <h4 class="fw-bold text-dark mb-0" id="popup_successful_count"></h4>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded-3 text-center">
+                                <div class="text-muted small mb-1">Pending Referrals</div>
+                                <h4 class="fw-bold text-warning mb-0" id="popup_pending_count"></h4>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold mb-3">List of Referred Users</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead class="bg-light small text-uppercase">
+                                <tr>
+                                    <th>User</th>
+                                    <th>Signed Up</th>
+                                    <th>Registered At</th>
+                                    <th>Sub Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="popup_referrals_list">
+                                <!-- Loaded via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     let currentUserData = null;
+
+    function showReferralPopUp(userId, dealerName) {
+        document.getElementById('popup_dealer_name').innerText = dealerName;
+        const listBody = document.getElementById('popup_referrals_list');
+        listBody.innerHTML = '<tr><td colspan="4" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div> Loading...</td></tr>';
+        
+        const modal = new bootstrap.Modal(document.getElementById('referralPopUpModal'));
+        modal.show();
+
+        fetch(`get_user_referrals.php?user_id=${userId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const stats = data.data.stats;
+                    const referrals = data.data.referrals;
+
+                    document.getElementById('popup_total_earnings').innerText = '<?php echo CURRENCY; ?> ' + parseFloat(stats.total_earnings).toFixed(2);
+                    document.getElementById('popup_successful_count').innerText = stats.successful_referrals;
+                    document.getElementById('popup_pending_count').innerText = stats.pending_referrals;
+
+                    listBody.innerHTML = '';
+                    if (referrals.length === 0) {
+                        listBody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">No referrals found for this user.</td></tr>';
+                    } else {
+                        referrals.forEach(ref => {
+                            const dateJoined = new Date(ref.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                            const regDate = ref.referral_registered_at 
+                                ? '<span class="text-success small fw-bold"><i class="bi bi-patch-check-fill me-1"></i>' + new Date(ref.referral_registered_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + '</span>'
+                                : '<span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill">Pending</span>';
+                            
+                            const subStatus = ref.subscription_status === 'active' 
+                                ? '<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Active</span>' 
+                                : '<span class="badge bg-light text-muted border rounded-pill">Inactive</span>';
+                            
+                            listBody.innerHTML += `
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold small text-dark">${ref.name}</div>
+                                        <div class="text-muted" style="font-size: 0.75rem;">${ref.email}</div>
+                                    </td>
+                                    <td class="small text-muted">${dateJoined}</td>
+                                    <td>${regDate}</td>
+                                    <td>${subStatus}</td>
+                                </tr>
+                            `;
+                        });
+                    }
+                } else {
+                    listBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-4">${data.message}</td></tr>`;
+                }
+            })
+            .catch(error => {
+                listBody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4">Error loading data.</td></tr>';
+            });
+    }
 
     function verifyUser(userId, status) {
         const action = status === 1 ? 'Verify' : 'Unverify';
@@ -509,6 +723,13 @@ try {
             document.getElementById('verify_user_id').value = userId;
             document.getElementById('verify_status').value = status;
             document.getElementById('verifyForm').submit();
+        }
+    }
+
+    function resendVerificationEmail(userId) {
+        if (confirm('Resend verification email to this user?')) {
+            document.getElementById('resend_verify_user_id').value = userId;
+            document.getElementById('resendVerificationForm').submit();
         }
     }
 
@@ -581,6 +802,11 @@ try {
             document.getElementById('detail_company').innerText = user.company_name || 'N/A';
             document.getElementById('detail_address').innerText = user.office_address || 'N/A';
             document.getElementById('detail_bio').innerText = user.bio || 'No bio available.';
+            
+            // Referral Info
+            document.getElementById('detail_referrer').innerText = user.referrer_name ? user.referrer_name + ' (' + user.referrer_email + ')' : 'None';
+            const earnings = parseFloat(user.referral_earnings || 0);
+            document.getElementById('detail_referral_earnings').innerText = '<?php echo CURRENCY; ?> ' + earnings.toFixed(2);
             
             let subText = '';
             if (user.subscription_status === 'active') {

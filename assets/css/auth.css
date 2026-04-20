@@ -50,7 +50,8 @@ html, body {
 /* Split Layout */
 .auth-split-wrapper {
     min-height: 100vh;
-    overflow: hidden;
+    overflow-y: auto; /* Allows scrolling if content is too tall */
+    overflow-x: hidden;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -58,6 +59,7 @@ html, body {
 
 .auth-left {
     padding: 4rem;
+    padding-top: 6rem; /* Reduced top padding on desktop */
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -130,7 +132,7 @@ html, body {
     align-items: center;
     justify-content: center;
     padding: 2rem;
-    padding-top: 6rem;
+    padding-top: 6rem; /* Reduced to avoid too much space */
     background-color: #fff;
     height: 100%;
     width: 100%;
@@ -208,13 +210,13 @@ html, body {
     }
 
     .auth-left {
-        padding: 2rem 2rem 0 2rem;
+        padding: 6rem 2rem 0 2rem; /* Increased top padding on mobile */
         text-align: center;
         height: auto;
     }
     
     .auth-right {
-        padding-top: 2rem;
+        padding-top: 6rem; /* Increased on mobile to account for navbar */
         height: auto;
     }
     

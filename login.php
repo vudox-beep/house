@@ -1,15 +1,83 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Check if user is already logged in and redirecting them away to prevent redirect loops
+if (isset($_SESSION['user_id'])) {
+    $redirect = $_GET['redirect'] ?? '';
+    if (!empty($redirect)) {
+        // Attempt to decode base64 redirect
+        $decoded_redirect = base64_decode($redirect, true);
+        // Ensure it decoded to something meaningful (like containing '.php') before trusting it as base64
+        if ($decoded_redirect !== false && strpos($decoded_redirect, '.php') !== false) {
+            $redirect = $decoded_redirect;
+        } else {
+            $redirect = urldecode($redirect);
+        }
+        
+        // Basic sanitization but allow ? and = for query params
+        $redirect = preg_replace('/[^a-zA-Z0-9_\-\.\?\=\&]/', '', $redirect);
+        
+        // Prevent redirect loops back to login
+        if (strpos($redirect, 'login.php') !== false) {
+            $redirect = 'index.php';
+        }
+        
+        // Final sanity check for overly long or malformed redirects
+        if (strlen($redirect) > 500) {
+            $redirect = 'index.php';
+        }
+        
+        header("Location: " . $redirect);
+    } else {
+        if ($_SESSION['user_role'] == 'dealer') {
+            header("Location: dealer/dashboard.php");
+        } elseif ($_SESSION['user_role'] == 'admin') {
+            header("Location: admin/dashboard.php");
+        } else {
+            header("Location: tenant/dashboard.php");
+        }
+    }
+    exit;
+}
+
 require_once 'config/config.php';
 require_once 'models/User.php';
 require_once 'includes/ActivityLogger.php';
 
 $error = '';
 
+// Session-based Math CAPTCHA
+if (!isset($_SESSION['login_captcha_num1'])) {
+    $_SESSION['login_captcha_num1'] = rand(1, 9);
+    $_SESSION['login_captcha_num2'] = rand(1, 9);
+    $_SESSION['login_captcha_answer'] = $_SESSION['login_captcha_num1'] + $_SESSION['login_captcha_num2'];
+}
+
+// Session-based timing
+if (!isset($_SESSION['login_start_time'])) {
+    $_SESSION['login_start_time'] = time();
+}
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // CSRF Check
     if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = "Session expired. Please refresh.";
     } else {
+        // Honeypots
+        if (!empty($_POST['company_name_optional']) || !empty($_POST['secondary_email'])) {
+            $error = "Invalid submission detected.";
+        }
+        // Math CAPTCHA
+        elseif (!isset($_POST['math_captcha']) || (int)$_POST['math_captcha'] !== $_SESSION['login_captcha_answer']) {
+            $error = "Incorrect math answer. Are you a bot?";
+        }
+        // Submission speed check (min 2s)
+        elseif (time() - $_SESSION['login_start_time'] < 2) {
+            $error = "You are submitting too fast. Please try again.";
+        }
+        
         // Brute Force Protection (Simple Rate Limiting)
         if (!isset($_SESSION['login_attempts'])) {
             $_SESSION['login_attempts'] = 0;
@@ -51,6 +119,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 // Regenerate session ID to prevent session fixation
                 session_regenerate_id(true);
 
+                // Handle custom redirect if passed
+                $redirect = $_GET['redirect'] ?? '';
+                if (!empty($redirect)) {
+                    // Attempt to decode base64 redirect
+                    $decoded_redirect = base64_decode($redirect, true);
+                    if ($decoded_redirect !== false && strpos($decoded_redirect, '.php') !== false) {
+                        $redirect = $decoded_redirect;
+                    } else {
+                        $redirect = urldecode($redirect);
+                    }
+                    
+                    // Basic sanitization to ensure it's a local path
+                    $redirect = preg_replace('/[^a-zA-Z0-9_\-\.\?\=\&]/', '', $redirect);
+                    
+                    if (strpos($redirect, 'login.php') === false && strlen($redirect) < 500) {
+                        header("Location: " . $redirect);
+                        exit;
+                    }
+                }
+
                 if ($loggedInUser['role'] == 'dealer') {
                     header("Location: dealer/dashboard.php");
                 } elseif ($loggedInUser['role'] == 'admin') {
@@ -68,6 +156,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
     }
+
+    // Regenerate CAPTCHA & Timer for next attempt after a POST
+    $_SESSION['login_captcha_num1'] = rand(1, 9);
+    $_SESSION['login_captcha_num2'] = rand(1, 9);
+    $_SESSION['login_captcha_answer'] = $_SESSION['login_captcha_num1'] + $_SESSION['login_captcha_num2'];
+    $_SESSION['login_start_time'] = time();
 }
 ?>
 
@@ -165,8 +259,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <div class="alert alert-success">Registration successful! Please login.</div>
                         <?php endif; ?>
 
-                        <form method="POST" action="">
+                        <form method="POST" action="login.php<?php echo isset($_GET['redirect']) ? '?redirect=' . htmlspecialchars($_GET['redirect']) : ''; ?>">
                             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                            <!-- Honeypots -->
+                            <input type="text" name="company_name_optional" value="" style="display:none !important;" tabindex="-1" autocomplete="off">
+                            <div style="position: absolute; left: -9999px;" aria-hidden="true">
+                                <input type="text" name="secondary_email" tabindex="-1" autocomplete="off">
+                            </div>
                             
                             <div class="mb-3">
                                 <label class="form-label fw-bold small">Email Address</label>
@@ -184,6 +283,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 </div>
                             </div>
 
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small">Security Check: What is <?php echo $_SESSION['login_captcha_num1']; ?> + <?php echo $_SESSION['login_captcha_num2']; ?>?</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-shield-check"></i></span>
+                                    <input type="number" class="form-control border-start-0 ps-0" name="math_captcha" placeholder="Answer" required>
+                                </div>
+                            </div>
+
                             <div class="d-flex justify-content-between align-items-center mb-4">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="remember">
@@ -193,7 +300,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>
 
                             <button type="submit" class="btn btn-auth-yellow mb-4">Log In</button>
-
+                            
                             <div class="text-center position-relative mb-4">
                                 <hr class="text-muted opacity-25">
                                 <span class="position-absolute top-50 start-50 translate-middle bg-white px-3 text-muted small">Or log in with</span>

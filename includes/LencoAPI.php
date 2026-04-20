@@ -123,8 +123,39 @@ class LencoAPI {
     public function getCollections($page = 1) {
         return $this->request('GET', '/collections?page=' . $page);
     }
+    public function getAccounts() {
+        // Get all accounts (each includes availableBalance & currentBalance)
+        return $this->request('GET', '/accounts'); 
+    }
+
     public function getBalance() {
-        // Try getting account details which usually includes balance
-        return $this->request('GET', '/account'); 
+        // Fetch all accounts and sum the available balances
+        $response = $this->getAccounts();
+        
+        if (isset($response['status']) && $response['status'] === true && isset($response['data'])) {
+            $data = $response['data'];
+            
+            // If data is a list of accounts
+            if (is_array($data) && isset($data[0])) {
+                $total_balance = 0;
+                foreach ($data as $account) {
+                    $total_balance += floatval($account['availableBalance'] ?? $account['currentBalance'] ?? 0);
+                }
+                return [
+                    'status' => true,
+                    'data' => [
+                        'availableBalance' => $total_balance,
+                        'accounts' => $data
+                    ]
+                ];
+            }
+            
+            // If data is a single account object
+            if (isset($data['availableBalance']) || isset($data['currentBalance'])) {
+                return $response;
+            }
+        }
+        
+        return $response;
     }
 }
