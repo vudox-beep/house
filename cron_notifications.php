@@ -10,10 +10,53 @@ $db = new Database();
 $conn = $db->connect();
 $mailer = new SimpleMailer();
 
+function calculateNextRentDue(array $rental, PDO $conn): array {
+    $sql = "SELECT month_year, amount, months_paid
+            FROM rent_payments
+            WHERE rental_id = :rental_id AND status = 'approved'
+            ORDER BY id DESC
+            LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->execute([':rental_id' => $rental['id']]);
+    $lastPaid = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    $startDate = new DateTime($rental['start_date']);
+    $startDay = (int) $startDate->format('d');
+
+    if ($lastPaid) {
+        $lastPaidDate = DateTime::createFromFormat('!F Y', $lastPaid['month_year']);
+        if ($lastPaidDate) {
+            $rentAmount = (float) ($rental['rent_amount'] ?? 0);
+            $monthsPaid = (int) ($lastPaid['months_paid'] ?? 1);
+            if ($monthsPaid < 1 && $rentAmount > 0) {
+                $monthsPaid = max(1, (int) round(((float) $lastPaid['amount']) / $rentAmount));
+            }
+
+            $nextDue = clone $lastPaidDate;
+            $nextDue->modify('+' . max(1, $monthsPaid) . ' month');
+
+            $daysInMonth = (int) $nextDue->format('t');
+            $targetDay = min($startDay, $daysInMonth);
+            $nextDue->setDate((int) $nextDue->format('Y'), (int) $nextDue->format('m'), $targetDay);
+
+            return [
+                'month_year' => $nextDue->format('F Y'),
+                'due_date' => $nextDue
+            ];
+        }
+    }
+
+    return [
+        'month_year' => $startDate->format('F Y'),
+        'due_date' => $startDate
+    ];
+}
+
 // Get current date details
 $current_day = date('j'); // Day of the month (1-31)
 $current_month_year = date('F Y'); // e.g., "March 2026"
 $next_month_year = date('F Y', strtotime('+1 month'));
+$today = new DateTime('today');
 
 // 1. NOTIFY TENANTS: Payment Due Soon (e.g., sent on 25th of previous month)
 // OR Payment Due Today (e.g., sent on 1st of current month)
@@ -32,19 +75,14 @@ $stmt->execute();
 $rentals = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach ($rentals as $rental) {
+    $dueData = calculateNextRentDue($rental, $conn);
+    $target_month = $dueData['month_year'];
+    $days_until_due = (int) $today->diff($dueData['due_date'])->format('%r%a');
+
     // Check if payment already exists for this month
     $sql_check_pay = "SELECT id, status FROM rent_payments 
                       WHERE rental_id = :rid AND month_year = :my";
     $stmt_check = $conn->prepare($sql_check_pay);
-    
-    // We are checking for the UPCOMING month if it's late in the current month (e.g., 25th)
-    // Or CURRENT month if it's early (e.g., 1st-5th)
-    
-    // LOGIC:
-    // If today is 25th-31st: Remind for NEXT month
-    // If today is 1st-5th: Remind for CURRENT month if not paid
-    
-    $target_month = ($current_day >= 25) ? $next_month_year : $current_month_year;
     
     $stmt_check->execute([':rid' => $rental['id'], ':my' => $target_month]);
     $payment = $stmt_check->fetch(PDO::FETCH_ASSOC);
@@ -54,16 +92,30 @@ foreach ($rentals as $rental) {
     $subject = "";
     $message = "";
 
-    // Case 1: Upcoming Due Date (e.g., sent on 28th)
-    if ($current_day >= 25 && !$payment) {
+    // Case 1: Exact 5-day reminder before the next due date
+    if ($days_until_due === 5 && !$payment) {
         $should_notify_tenant = true;
         $subject = "Upcoming Rent Due: " . $target_month . " - " . SITE_NAME;
         $message = "Hello " . $rental['tenant_name'] . ",<br><br>
-                    This is a reminder that your rent for <b>" . $target_month . "</b> is due soon.<br>
+                    This is a reminder that your rent for <b>" . $target_month . "</b> is due in 5 days.<br>
                     Property: " . $rental['property_title'] . "<br>
+                    Due Date: " . $dueData['due_date']->format('M d, Y') . "<br>
                     Amount: " . $rental['currency'] . " " . number_format($rental['rent_amount']) . "<br><br>
                     Please login to your dashboard to view payment details and upload your proof of payment.<br>
                     <a href='" . SITE_URL . "/login.php'>Login Here</a>";
+    } elseif ($current_day >= 25 && !$payment) {
+        // Keep the fallback month-end reminder for tenants on monthly billing cycles.
+        $fallbackMonth = $next_month_year;
+        if ($fallbackMonth === $target_month) {
+            $should_notify_tenant = true;
+            $subject = "Upcoming Rent Due: " . $target_month . " - " . SITE_NAME;
+            $message = "Hello " . $rental['tenant_name'] . ",<br><br>
+                        This is a reminder that your rent for <b>" . $target_month . "</b> is due soon.<br>
+                        Property: " . $rental['property_title'] . "<br>
+                        Amount: " . $rental['currency'] . " " . number_format($rental['rent_amount']) . "<br><br>
+                        Please login to your dashboard to view payment details and upload your proof of payment.<br>
+                        <a href='" . SITE_URL . "/login.php'>Login Here</a>";
+        }
     }
     
 // Case 2a: Due Today (1st of the month)

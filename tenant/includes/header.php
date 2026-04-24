@@ -3,6 +3,18 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+$tenant_has_pro = false;
+try {
+    require_once __DIR__ . '/../../config/config.php';
+    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $stmtPro = $pdo->prepare("SELECT id FROM premium_contacts WHERE user_id = ? AND status = 'active' LIMIT 1");
+    $stmtPro->execute([$_SESSION['user_id'] ?? 0]);
+    $tenant_has_pro = (bool) $stmtPro->fetchColumn();
+} catch (Exception $e) {
+    $tenant_has_pro = false;
+}
+
 // Redirect if not user (tenant)
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'user') {
     header("Location: ../login.php");
@@ -35,6 +47,9 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'user') {
         <div class="d-flex align-items-center">
             
             <span class="me-3 fw-bold text-muted d-none d-md-block"><?php echo $_SESSION['user_name']; ?></span>
+            <?php if($tenant_has_pro): ?>
+                <span class="badge rounded-pill bg-warning text-dark fw-bold me-2">PRO</span>
+            <?php endif; ?>
             <?php 
             // Fallback if session var not set (e.g. older session)
             $profileImg = $_SESSION['profile_image'] ?? null;

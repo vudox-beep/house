@@ -2,6 +2,8 @@
 require_once '../config/config.php';
 require_once '../models/Property.php';
 require_once '../models/User.php';
+require_once '../includes/LencoAPI.php';
+require_once '../includes/SimpleMailer.php';
 
 // Include Header
 include 'includes/header.php';
@@ -9,6 +11,171 @@ include 'includes/header.php';
 $user_id = $_SESSION['user_id'];
 $db = new Database();
 $conn = $db->connect();
+
+function ensureRentPaymentLencoSchema(PDO $conn): void {
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+
+    $paymentMethodColumn = $conn->query("SHOW COLUMNS FROM rent_payments LIKE 'payment_method'")->fetch(PDO::FETCH_ASSOC);
+    if ($paymentMethodColumn && strpos($paymentMethodColumn['Type'], "'lenco'") === false) {
+        $conn->exec("ALTER TABLE rent_payments MODIFY COLUMN payment_method ENUM('cash','bank_transfer','mobile_money','lenco') DEFAULT 'bank_transfer'");
+    }
+
+    $columnsToEnsure = [
+        'reference' => "ALTER TABLE rent_payments ADD COLUMN reference VARCHAR(255) DEFAULT NULL AFTER months_paid",
+        'lenco_reference' => "ALTER TABLE rent_payments ADD COLUMN lenco_reference VARCHAR(255) DEFAULT NULL AFTER reference"
+    ];
+
+    foreach ($columnsToEnsure as $column => $sql) {
+        $exists = $conn->query("SHOW COLUMNS FROM rent_payments LIKE " . $conn->quote($column))->fetch(PDO::FETCH_ASSOC);
+        if (!$exists) {
+            $conn->exec($sql);
+        }
+    }
+
+    $checked = true;
+}
+
+function formatRentPaymentMethod(?string $method): string {
+    $normalized = strtolower((string) $method);
+    return match ($normalized) {
+        'lenco' => 'Lenco',
+        'mobile_money' => 'Mobile Money',
+        'bank_transfer' => 'Bank Transfer',
+        default => ucwords(str_replace('_', ' ', $normalized ?: 'bank_transfer'))
+    };
+}
+
+function buildRentPaymentEmail(string $recipientName, string $heading, string $intro, array $details, string $ctaPath): string {
+    $rows = '';
+    foreach ($details as $label => $value) {
+        $rows .= '<tr><th style="padding:10px;border-bottom:1px solid #eee;text-align:left;">' . htmlspecialchars($label) . '</th><td style="padding:10px;border-bottom:1px solid #eee;">' . htmlspecialchars($value) . '</td></tr>';
+    }
+
+    $ctaUrl = rtrim(SITE_URL, '/') . '/' . ltrim($ctaPath, '/');
+
+    return "
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; background: #f7f7f7; color: #333; margin: 0; padding: 20px; }
+            .card { max-width: 640px; margin: 0 auto; background: #fff; border-radius: 10px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+            .btn { display: inline-block; margin-top: 18px; padding: 12px 20px; background: #0d6efd; color: #fff; text-decoration: none; border-radius: 6px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        </style>
+    </head>
+    <body>
+        <div class='card'>
+            <h2 style='margin-top:0;'>" . htmlspecialchars($heading) . "</h2>
+            <p>Hello " . htmlspecialchars($recipientName) . ",</p>
+            <p>" . $intro . "</p>
+            <table>" . $rows . "</table>
+            <a href='" . htmlspecialchars($ctaUrl) . "' class='btn'>Open Dashboard</a>
+        </div>
+    </body>
+    </html>";
+}
+
+function logTenantLencoTransaction(PDO $conn, array $payment): void {
+    $tableExists = $conn->query("SHOW TABLES LIKE 'transactions'")->rowCount() > 0;
+    if (!$tableExists) {
+        return;
+    }
+
+    $existing = $conn->prepare("SELECT id FROM transactions WHERE reference = :reference LIMIT 1");
+    $existing->execute([':reference' => $payment['reference']]);
+    $existingId = $existing->fetchColumn();
+
+    $message = "Tenant rent payment via Lenco for {$payment['month_year']} at {$payment['property_title']} (Dealer: {$payment['dealer_name']})";
+    $params = [
+        ':user_id' => $payment['tenant_id'],
+        ':reference' => $payment['reference'],
+        ':lenco_reference' => $payment['lenco_reference'],
+        ':amount' => $payment['amount'],
+        ':currency' => $payment['currency'],
+        ':status' => 'successful',
+        ':message' => $message,
+        ':payment_method' => 'lenco'
+    ];
+
+    if ($existingId) {
+        $sql = "UPDATE transactions
+                SET user_id = :user_id, lenco_reference = :lenco_reference, amount = :amount, currency = :currency,
+                    status = :status, message = :message, payment_method = :payment_method, updated_at = NOW()
+                WHERE id = :id";
+        $params[':id'] = $existingId;
+    } else {
+        $sql = "INSERT INTO transactions (user_id, reference, lenco_reference, amount, currency, status, message, payment_method)
+                VALUES (:user_id, :reference, :lenco_reference, :amount, :currency, :status, :message, :payment_method)";
+    }
+
+    $stmt = $conn->prepare($sql);
+    $stmt->execute($params);
+}
+
+function sendTenantLencoPaymentEmails(array $payment): void {
+    $mailer = new SimpleMailer();
+
+    $tenantBody = buildRentPaymentEmail(
+        $payment['tenant_name'] ?: 'Tenant',
+        'Lenco Rent Payment Confirmed',
+        'Your rent payment was received successfully and recorded automatically.',
+        [
+            'Reference' => $payment['reference'],
+            'Lenco Ref' => $payment['lenco_reference'] ?: '-',
+            'Property' => $payment['property_title'],
+            'For Month' => $payment['month_year'],
+            'Amount' => $payment['currency'] . ' ' . number_format((float) $payment['amount'], 2),
+            'Status' => 'Approved'
+        ],
+        'tenant/payments.php'
+    );
+    $mailer->send($payment['tenant_email'], 'Rent Payment Confirmation - ' . SITE_NAME, $tenantBody);
+
+    if (!empty($payment['dealer_email'])) {
+        $dealerBody = buildRentPaymentEmail(
+            $payment['dealer_name'] ?: 'Dealer',
+            'Tenant Lenco Payment Received',
+            htmlspecialchars($payment['tenant_name']) . ' has paid rent successfully using Lenco.',
+            [
+                'Tenant' => $payment['tenant_name'],
+                'Reference' => $payment['reference'],
+                'Property' => $payment['property_title'],
+                'For Month' => $payment['month_year'],
+                'Amount' => $payment['currency'] . ' ' . number_format((float) $payment['amount'], 2),
+                'Status' => 'Approved'
+            ],
+            'dealer/tenant_payments.php'
+        );
+        $mailer->send($payment['dealer_email'], 'Tenant Lenco Payment Alert - ' . SITE_NAME, $dealerBody);
+    }
+}
+
+function fetchRentPaymentContext(PDO $conn, int $paymentId, int $tenantId): ?array {
+    $sql = "SELECT rp.*, p.title AS property_title,
+                   tenant.name AS tenant_name, tenant.email AS tenant_email,
+                   dealer.name AS dealer_name, dealer.email AS dealer_email
+            FROM rent_payments rp
+            JOIN rentals r ON rp.rental_id = r.id
+            JOIN properties p ON r.property_id = p.id
+            JOIN users tenant ON rp.tenant_id = tenant.id
+            JOIN users dealer ON r.dealer_id = dealer.id
+            WHERE rp.id = :payment_id AND rp.tenant_id = :tenant_id
+            LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->execute([
+        ':payment_id' => $paymentId,
+        ':tenant_id' => $tenantId
+    ]);
+
+    $payment = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $payment ?: null;
+}
+
+ensureRentPaymentLencoSchema($conn);
 
 $error = '';
 $success = '';
@@ -19,6 +186,62 @@ $stmt_rental = $conn->prepare($sql_rental);
 $stmt_rental->execute([':tenant_id' => $user_id]);
 $active_rental = $stmt_rental->fetch(PDO::FETCH_ASSOC);
 
+$stmtTenant = $conn->prepare("SELECT name, email, phone FROM users WHERE id = :tenant_id LIMIT 1");
+$stmtTenant->execute([':tenant_id' => $user_id]);
+$tenant_profile = $stmtTenant->fetch(PDO::FETCH_ASSOC) ?: ['name' => '', 'email' => '', 'phone' => ''];
+
+// Verify a pending Lenco payment
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['verify_lenco_payment'])) {
+    $payment_id = (int) ($_POST['payment_id'] ?? 0);
+    $payment = fetchRentPaymentContext($conn, $payment_id, (int) $user_id);
+
+    if (!$payment || strtolower((string) ($payment['payment_method'] ?? '')) !== 'lenco') {
+        $error = "Invalid Lenco payment selected.";
+    } elseif (empty($payment['reference'])) {
+        $error = "This payment does not have a Lenco reference yet.";
+    } else {
+        $lenco = new LencoAPI();
+        $verification = $lenco->verifyTransaction($payment['reference']);
+
+        if (isset($verification['status']) && $verification['status'] === true) {
+            $verifiedData = $verification['data'] ?? [];
+            $paymentStatus = strtolower($verifiedData['status'] ?? 'pending');
+
+            if ($paymentStatus === 'successful') {
+                $lencoReference = $verifiedData['lencoReference'] ?? $verifiedData['id'] ?? null;
+                $notes = trim((string) ($payment['dealer_notes'] ?? ''));
+                $autoNote = 'Approved automatically after successful Lenco payment.';
+                $mergedNotes = $notes === '' ? $autoNote : $notes . ' | ' . $autoNote;
+
+                $stmtApprove = $conn->prepare("UPDATE rent_payments
+                                               SET status = 'approved',
+                                                   lenco_reference = :lenco_reference,
+                                                   dealer_notes = :dealer_notes
+                                               WHERE id = :payment_id");
+                $stmtApprove->execute([
+                    ':lenco_reference' => $lencoReference,
+                    ':dealer_notes' => $mergedNotes,
+                    ':payment_id' => $payment_id
+                ]);
+
+                $payment = fetchRentPaymentContext($conn, $payment_id, (int) $user_id);
+                if ($payment) {
+                    logTenantLencoTransaction($conn, $payment);
+                    sendTenantLencoPaymentEmails($payment);
+                }
+
+                $success = "Lenco payment confirmed and recorded successfully.";
+            } elseif (in_array($paymentStatus, ['failed', 'cancelled'], true)) {
+                $error = "Lenco reports this payment as " . ucfirst($paymentStatus) . ".";
+            } else {
+                $success = "Lenco payment is still " . $paymentStatus . ". Please verify again after approving the phone prompt.";
+            }
+        } else {
+            $error = $verification['message'] ?? 'Unable to verify the Lenco payment right now.';
+        }
+    }
+}
+
 // Handle Payment Upload
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['upload_payment'])) {
     if (!$active_rental) {
@@ -27,12 +250,43 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['upload_payment'])) {
         $month = $_POST['month'];
         $year = $_POST['year'];
         $amount = $_POST['amount'];
-        $payment_method = $_POST['payment_method']; // 'cash', 'bank_transfer', 'mobile_money'
+        $payment_method = $_POST['payment_method']; // 'cash', 'bank_transfer', 'mobile_money', 'lenco'
         $months_paid = isset($_POST['months_paid']) ? (int)$_POST['months_paid'] : 1;
         $month_year = $month . ' ' . $year;
         
         // Handle File Upload (Optional if Cash)
-        if ($payment_method == 'cash') {
+        if ($payment_method == 'lenco') {
+            $phone = trim($_POST['lenco_phone'] ?? ($tenant_profile['phone'] ?? ''));
+            $operator = strtolower(trim($_POST['lenco_operator'] ?? 'mtn'));
+            $country = strtolower(trim($_POST['lenco_country'] ?? 'zm'));
+
+            if ($phone === '') {
+                $error = "Phone number is required for Lenco payments.";
+            } else {
+                $lenco = new LencoAPI();
+                $response = $lenco->initiateMobileMoney($amount, $active_rental['currency'], $phone, $operator, $country);
+
+                if (isset($response['status']) && $response['status'] === true) {
+                    $reference = $response['data']['reference'] ?? $response['data']['id'] ?? ('RENT-' . uniqid() . '-' . time());
+                    $stmt_insert = $conn->prepare("INSERT INTO rent_payments
+                        (rental_id, tenant_id, month_year, amount, currency, proof_file, payment_method, status, months_paid, reference)
+                        VALUES (:rid, :tid, :my, :amt, :curr, NULL, 'lenco', 'pending', :months, :reference)");
+                    $stmt_insert->execute([
+                        ':rid' => $active_rental['id'],
+                        ':tid' => $user_id,
+                        ':my' => $month_year,
+                        ':amt' => $amount,
+                        ':curr' => $active_rental['currency'],
+                        ':months' => $months_paid,
+                        ':reference' => $reference
+                    ]);
+
+                    $success = "Lenco payment request sent. Approve the prompt on your phone, then click Verify in your payment history.";
+                } else {
+                    $error = $response['message'] ?? 'Failed to start the Lenco payment.';
+                }
+            }
+        } elseif ($payment_method == 'cash') {
              // Insert into DB without file
             $sql_insert = "INSERT INTO rent_payments (rental_id, tenant_id, month_year, amount, currency, proof_file, payment_method, status, months_paid) 
                            VALUES (:rid, :tid, :my, :amt, :curr, NULL, :method, 'pending', :months)";
@@ -133,7 +387,8 @@ $payments = $stmt_history->fetchAll(PDO::FETCH_ASSOC);
                             <th>Method</th>
                             <th>Status</th>
                             <th>Proof</th>
-                            <th>Notes</th>
+                                    <th>Notes</th>
+                                    <th>Action</th>
                             <th>Date Uploaded</th>
                         </tr>
                     </thead>
@@ -177,12 +432,26 @@ $payments = $stmt_history->fetchAll(PDO::FETCH_ASSOC);
                                     <td class="small text-muted fst-italic">
                                         <?php echo $pay['dealer_notes'] ? htmlspecialchars($pay['dealer_notes']) : '-'; ?>
                                     </td>
+                                    <td>
+                                        <?php if (($pay['payment_method'] ?? '') === 'lenco' && $pay['status'] === 'pending'): ?>
+                                            <form method="POST" class="mb-0">
+                                                <input type="hidden" name="payment_id" value="<?php echo (int) $pay['id']; ?>">
+                                                <button type="submit" name="verify_lenco_payment" class="btn btn-sm btn-primary">
+                                                    Verify
+                                                </button>
+                                            </form>
+                                        <?php elseif (($pay['payment_method'] ?? '') === 'lenco' && !empty($pay['reference'])): ?>
+                                            <span class="small text-muted"><?php echo htmlspecialchars($pay['reference']); ?></span>
+                                        <?php else: ?>
+                                            <span class="text-muted small">-</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="text-muted small"><?php echo date('M d, Y', strtotime($pay['created_at'])); ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="6" class="text-center py-5">
+                                <td colspan="8" class="text-center py-5">
                                     <div class="text-muted mb-3">
                                         <i class="bi bi-wallet2 fs-1 opacity-25"></i>
                                     </div>
@@ -265,8 +534,28 @@ $payments = $stmt_history->fetchAll(PDO::FETCH_ASSOC);
                         <select class="form-select" name="payment_method" id="paymentMethod" onchange="toggleProofUpload()" required>
                             <option value="bank_transfer">Bank Transfer</option>
                             <option value="mobile_money">Mobile Money</option>
+                            <option value="lenco">Lenco</option>
                             <option value="cash">Cash</option>
                         </select>
+                    </div>
+
+                    <div class="row g-2 mb-3" id="lencoFields" style="display:none;">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Lenco Phone</label>
+                            <input type="text" class="form-control" name="lenco_phone" id="lencoPhone" value="<?php echo htmlspecialchars($tenant_profile['phone'] ?? ''); ?>" placeholder="e.g. 097xxxxxxx">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Network</label>
+                            <select class="form-select" name="lenco_operator" id="lencoOperator">
+                                <option value="mtn">MTN</option>
+                                <option value="airtel">Airtel</option>
+                                <option value="zamtel">Zamtel</option>
+                            </select>
+                        </div>
+                        <input type="hidden" name="lenco_country" value="zm">
+                        <div class="col-12">
+                            <div class="form-text small">Lenco sends a mobile money prompt to this number. No proof upload is needed after a successful verification.</div>
+                        </div>
                     </div>
 
                     <div class="mb-3" id="proofUploadField">
@@ -289,13 +578,28 @@ function toggleProofUpload() {
     const method = document.getElementById('paymentMethod').value;
     const proofField = document.getElementById('proofUploadField');
     const proofInput = document.getElementById('proofFile');
+    const lencoFields = document.getElementById('lencoFields');
+    const lencoPhone = document.getElementById('lencoPhone');
+    const lencoOperator = document.getElementById('lencoOperator');
     
     if (method === 'cash') {
         proofField.style.display = 'none';
         proofInput.removeAttribute('required');
+        lencoFields.style.display = 'none';
+        lencoPhone.removeAttribute('required');
+        lencoOperator.removeAttribute('required');
+    } else if (method === 'lenco') {
+        proofField.style.display = 'none';
+        proofInput.removeAttribute('required');
+        lencoFields.style.display = 'flex';
+        lencoPhone.setAttribute('required', 'required');
+        lencoOperator.setAttribute('required', 'required');
     } else {
         proofField.style.display = 'block';
         proofInput.setAttribute('required', 'required');
+        lencoFields.style.display = 'none';
+        lencoPhone.removeAttribute('required');
+        lencoOperator.removeAttribute('required');
     }
 }
 
@@ -306,6 +610,8 @@ function updateTotalAmount() {
     
     document.getElementById('amountInput').value = total.toFixed(2);
 }
+
+toggleProofUpload();
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

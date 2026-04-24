@@ -38,6 +38,35 @@ try {
                              ORDER BY t.created_at DESC");
         $transactions = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    $premiumExists = $pdo->query("SHOW TABLES LIKE 'premium_contacts'")->rowCount() > 0;
+    if ($premiumExists) {
+        $stmtPremium = $pdo->query("SELECT 
+                                        pc.user_id,
+                                        pc.transaction_reference AS reference,
+                                        pc.lenco_reference,
+                                        pc.amount_paid AS amount,
+                                        'ZMW' AS currency,
+                                        CASE
+                                            WHEN pc.status = 'active' THEN 'successful'
+                                            ELSE pc.status
+                                        END AS status,
+                                        'Tenant Pro contact access payment' AS message,
+                                        COALESCE(pc.payment_type, 'lenco') AS payment_method,
+                                        pc.created_at,
+                                        pc.created_at AS updated_at,
+                                        u.name AS user_name,
+                                        u.email AS user_email
+                                    FROM premium_contacts pc
+                                    LEFT JOIN users u ON pc.user_id = u.id
+                                    ORDER BY pc.created_at DESC");
+        $premium_transactions = $stmtPremium->fetchAll(PDO::FETCH_ASSOC);
+
+        $transactions = array_merge($transactions, $premium_transactions);
+        usort($transactions, function ($a, $b) {
+            return strtotime($b['created_at'] ?? '') <=> strtotime($a['created_at'] ?? '');
+        });
+    }
     
     // Fetch Lenco Data if requested
     if ($view === 'lenco') {

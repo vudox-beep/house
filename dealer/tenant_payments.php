@@ -119,6 +119,34 @@ $dealer_id = $_SESSION['user_id'];
 $db = new Database();
 $conn = $db->connect();
 
+function ensureRentPaymentLencoSchema(PDO $conn): void {
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+
+    $paymentMethodColumn = $conn->query("SHOW COLUMNS FROM rent_payments LIKE 'payment_method'")->fetch(PDO::FETCH_ASSOC);
+    if ($paymentMethodColumn && strpos($paymentMethodColumn['Type'], "'lenco'") === false) {
+        $conn->exec("ALTER TABLE rent_payments MODIFY COLUMN payment_method ENUM('cash','bank_transfer','mobile_money','lenco') DEFAULT 'bank_transfer'");
+    }
+
+    $columnsToEnsure = [
+        'reference' => "ALTER TABLE rent_payments ADD COLUMN reference VARCHAR(255) DEFAULT NULL AFTER months_paid",
+        'lenco_reference' => "ALTER TABLE rent_payments ADD COLUMN lenco_reference VARCHAR(255) DEFAULT NULL AFTER reference"
+    ];
+
+    foreach ($columnsToEnsure as $column => $sql) {
+        $exists = $conn->query("SHOW COLUMNS FROM rent_payments LIKE " . $conn->quote($column))->fetch(PDO::FETCH_ASSOC);
+        if (!$exists) {
+            $conn->exec($sql);
+        }
+    }
+
+    $checked = true;
+}
+
+ensureRentPaymentLencoSchema($conn);
+
 $error = '';
 $success = '';
 
@@ -207,6 +235,7 @@ $payments = $stmt_payments->fetchAll(PDO::FETCH_ASSOC);
                                 <th class="ps-4 text-start">Tenant</th>
                                 <th>Property</th>
                                 <th>Month</th>
+                                <th>Method</th>
                                 <th>Amount</th>
                                 <th>Proof</th>
                                 <th>Status</th>
@@ -228,6 +257,12 @@ $payments = $stmt_payments->fetchAll(PDO::FETCH_ASSOC);
                                             </span>
                                         </td>
                                         <td class="fw-bold"><?php echo htmlspecialchars($pay['month_year']); ?></td>
+                                        <td>
+                                            <div class="small fw-semibold"><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $pay['payment_method'] ?? 'bank_transfer'))); ?></div>
+                                            <?php if (!empty($pay['reference'])): ?>
+                                                <div class="small text-muted"><?php echo htmlspecialchars($pay['reference']); ?></div>
+                                            <?php endif; ?>
+                                        </td>
                                         <td class="text-primary fw-bold"><?php echo $pay['currency'] . ' ' . number_format($pay['amount']); ?></td>
                                         <td>
                                             <?php if($pay['proof_file']): ?>
@@ -270,7 +305,7 @@ $payments = $stmt_payments->fetchAll(PDO::FETCH_ASSOC);
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="8" class="text-center py-5">
+                                    <td colspan="9" class="text-center py-5">
                                         <div class="text-muted mb-3">
                                             <i class="bi bi-cash-stack fs-1 opacity-25"></i>
                                         </div>

@@ -38,6 +38,36 @@ $propertyModel->incrementViews($property_id); // Increment views
 $property = $propertyModel->getById($property_id);
 $images = $propertyModel->getImages($property_id);
 
+$current_user = null;
+$tenant_has_premium_contacts = false;
+$is_logged_in = isset($_SESSION['user_id']);
+$user_role = $_SESSION['user_role'] ?? null;
+$is_tenant_user = $user_role === 'user';
+$should_lock_contacts = true;
+
+if ($is_logged_in) {
+    try {
+        $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+        $stmtCurrentUser = $pdo->prepare("SELECT id, name, email, phone FROM users WHERE id = :id LIMIT 1");
+        $stmtCurrentUser->execute([':id' => $_SESSION['user_id']]);
+        $current_user = $stmtCurrentUser->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        if ($is_tenant_user) {
+            $stmtPremium = $pdo->prepare("SELECT id FROM premium_contacts WHERE user_id = :user_id AND status = 'active' LIMIT 1");
+            $stmtPremium->execute([':user_id' => $_SESSION['user_id']]);
+            $tenant_has_premium_contacts = (bool) $stmtPremium->fetchColumn();
+            $should_lock_contacts = !$tenant_has_premium_contacts;
+        } else {
+            $should_lock_contacts = false;
+        }
+    } catch (Exception $e) {
+        $current_user = null;
+        $should_lock_contacts = $is_tenant_user || !$is_logged_in;
+    }
+}
+
 $is_saved = false;
 if (isset($_SESSION['user_id'])) {
     $favoriteModel = new Favorite();
@@ -46,6 +76,24 @@ if (isset($_SESSION['user_id'])) {
 
 if (!$property) {
     echo "Property not found.";
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['open_premium_payment'])) {
+    if (!$is_logged_in || !$is_tenant_user || !$current_user) {
+        header("Location: login.php");
+        exit;
+    }
+
+    $_REQUEST['action'] = 'pay_page';
+    $_REQUEST['user_id'] = $_SESSION['user_id'];
+    $_REQUEST['phone'] = $current_user['phone'] ?? '';
+    $_REQUEST['email'] = $current_user['email'] ?? '';
+    $_REQUEST['name'] = $current_user['name'] ?? '';
+    $_GET['action'] = 'pay_page';
+    $_GET['user_id'] = (string) $_SESSION['user_id'];
+
+    include __DIR__ . '/api/tenant_contact_payment.php';
     exit;
 }
 
@@ -540,6 +588,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
 
             <!-- Right Column: Agent Card -->
             <div class="col-lg-4">
+                <?php
+                    $details_redirect_path = "property_details.php?id=" . $raw_id;
+                    $encoded_details_redirect = urlencode(base64_encode($details_redirect_path));
+                    $contact_login_redirect = "login.php?redirect=" . $encoded_details_redirect;
+                ?>
                 <div class="agent-card shadow-sm bg-white">
                     <div class="d-flex align-items-center mb-4">
                         <img src="assets/images/user-placeholder.png" class="agent-avatar" alt="Landlord">
@@ -550,15 +603,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                     </div>
 
                     <?php if(!empty($property['phone'])): ?>
-                        <a href="tel:<?php echo $property['phone']; ?>" class="btn-contact btn-call">
-                            <i class="bi bi-telephone-fill"></i> Call Landlord
-                        </a>
+                        <?php if($should_lock_contacts): ?>
+                            <?php if($is_tenant_user): ?>
+                                <button type="button" class="btn-contact btn-call border-0 w-100" data-bs-toggle="modal" data-bs-target="#premiumContactModal">
+                                    <i class="bi bi-lock-fill me-1"></i> Unlock Call
+                                </button>
+                            <?php else: ?>
+                                <a href="<?php echo $contact_login_redirect; ?>" class="btn-contact btn-call text-decoration-none" onclick="alert('Login as a tenant, then pay to unlock contacts.');">
+                                    <i class="bi bi-lock-fill me-1"></i> Unlock Call
+                                </a>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <a href="tel:<?php echo $property['phone']; ?>" class="btn-contact btn-call">
+                                <i class="bi bi-telephone-fill"></i> Call Landlord
+                            </a>
+                        <?php endif; ?>
                     <?php endif; ?>
 
                     <?php if(!empty($property['whatsapp_number'])): ?>
-                        <a href="https://wa.me/<?php echo preg_replace('/[^0-9]/', '', $property['whatsapp_number']); ?>?text=I'm interested in <?php echo urlencode($property['title']); ?>" target="_blank" class="btn-contact btn-whatsapp">
-                            <i class="bi bi-whatsapp"></i> WhatsApp
-                        </a>
+                        <?php if($should_lock_contacts): ?>
+                            <?php if($is_tenant_user): ?>
+                                <button type="button" class="btn-contact btn-whatsapp border-0 w-100" data-bs-toggle="modal" data-bs-target="#premiumContactModal">
+                                    <i class="bi bi-lock-fill me-1"></i> Unlock WhatsApp
+                                </button>
+                            <?php else: ?>
+                                <a href="<?php echo $contact_login_redirect; ?>" class="btn-contact btn-whatsapp text-decoration-none" onclick="alert('Login as a tenant, then pay to unlock contacts.');">
+                                    <i class="bi bi-lock-fill me-1"></i> Unlock WhatsApp
+                                </a>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <a href="https://wa.me/<?php echo preg_replace('/[^0-9]/', '', $property['whatsapp_number']); ?>?text=I'm interested in <?php echo urlencode($property['title']); ?>" target="_blank" class="btn-contact btn-whatsapp" id="whatsappContactLink">
+                                <i class="bi bi-whatsapp"></i> WhatsApp
+                            </a>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
+                    <?php if($should_lock_contacts): ?>
+                        <div class="alert alert-warning border-0 mt-3 small mb-0">
+                            <strong>Premium Contact Access:</strong>
+                            <?php echo $is_tenant_user ? 'Pay ZMW 5 once to unlock landlord call and WhatsApp on the website.' : 'Login as a tenant, then pay ZMW 5 once to unlock landlord call and WhatsApp on the website.'; ?>
+                        </div>
                     <?php endif; ?>
 
                     <?php if(isset($_SESSION['user_id'])): ?>
@@ -582,12 +666,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                     <?php else: ?>
                         <?php 
                             // Construct safe redirect URL
-                            $redirect_url = "property_details.php?id=" . urlencode($raw_id);
+                            $redirect_url = "property_details.php?id=" . $raw_id;
+                            $encoded_redirect_url = urlencode(base64_encode($redirect_url));
                         ?>
-                        <a href="../login.php?redirect=<?php echo urlencode($redirect_url); ?>" class="btn-contact btn-live-chat text-decoration-none" onclick="alert('Please login first to chat with the landlord.');">
+                        <a href="login.php?redirect=<?php echo $encoded_redirect_url; ?>" class="btn-contact btn-live-chat text-decoration-none" onclick="alert('Please login first to chat with the landlord.');">
                             <i class="bi bi-chat-dots-fill"></i> Login to Chat
                         </a>
-                        <a href="../login.php?redirect=<?php echo urlencode($redirect_url); ?>" class="btn-contact btn-light border mt-2 w-100 text-decoration-none d-block text-center">
+                        <a href="login.php?redirect=<?php echo $encoded_redirect_url; ?>" class="btn-contact btn-light border mt-2 w-100 text-decoration-none d-block text-center">
                             <i class="bi bi-heart"></i> Save Property
                         </a>
                     <?php endif; ?>
@@ -636,6 +721,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
             </div>
         </div>
     </div>
+
+    <?php if(isset($_SESSION['user_id']) && ($_SESSION['user_role'] ?? '') === 'user'): ?>
+    <div class="modal fade" id="premiumContactModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Unlock Contact Access</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info border-0">
+                        Pay <strong>ZMW 5</strong> one time to unlock landlord phone and WhatsApp for listings on your website account.
+                    </div>
+
+                    <div id="premiumStatusMessage" class="small mb-3 text-muted">
+                        <?php echo $tenant_has_premium_contacts ? 'Premium contact access is already active on your account.' : 'Complete the payment process below to unlock landlord contacts.'; ?>
+                    </div>
+
+                    <div id="premiumPaymentFields" <?php echo $tenant_has_premium_contacts ? 'style="display:none;"' : ''; ?>>
+                        <div class="bg-light rounded p-3">
+                            <div class="small text-muted mb-2">Payment method</div>
+                            <div class="fw-semibold mb-2">Lenco</div>
+                            <div class="small text-muted">Tap the button below and complete the payment process.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                    <form method="POST" action="property_details.php?id=<?php echo urlencode($raw_id); ?>" class="mb-0">
+                        <input type="hidden" name="open_premium_payment" value="1">
+                        <button type="submit" class="btn btn-primary" id="startPremiumButton" <?php echo $tenant_has_premium_contacts ? 'style="display:none;"' : ''; ?>>
+                            Process To Pay
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Report Modal -->
     <div class="modal fade" id="reportModal" tabindex="-1">
@@ -831,6 +955,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
             
             resultDiv.style.display = 'block';
         }
+
+        <?php if(isset($_SESSION['user_id']) && ($_SESSION['user_role'] ?? '') === 'user'): ?>
+        let tenantPremiumUnlocked = <?php echo $tenant_has_premium_contacts ? 'true' : 'false'; ?>;
+
+        function setPremiumStatus(message, type = 'muted') {
+            const box = document.getElementById('premiumStatusMessage');
+            if (!box) return;
+            box.className = 'small mb-3 text-' + type;
+            box.textContent = message;
+        }
+
+        function unlockPremiumContactButtons() {
+            tenantPremiumUnlocked = true;
+            const phone = <?php echo json_encode($property['phone'] ?? ''); ?>;
+            const whatsappUrl = <?php echo json_encode(!empty($property['whatsapp_number']) ? ('https://wa.me/' . preg_replace('/[^0-9]/', '', $property['whatsapp_number']) . '?text=' . rawurlencode("I'm interested in " . $property['title'])) : ''); ?>;
+
+            document.querySelectorAll('[data-bs-target="#premiumContactModal"]').forEach(button => {
+                if (button.classList.contains('btn-call')) {
+                    const link = document.createElement('a');
+                    link.href = 'tel:' + phone;
+                    link.className = button.className.replace('border-0 w-100', '').trim();
+                    link.innerHTML = '<i class="bi bi-telephone-fill"></i> Call Landlord';
+                    button.replaceWith(link);
+                } else if (button.classList.contains('btn-whatsapp')) {
+                    const link = document.createElement('a');
+                    link.href = whatsappUrl;
+                    link.target = '_blank';
+                    link.className = button.className.replace('border-0 w-100', '').trim();
+                    link.innerHTML = '<i class="bi bi-whatsapp"></i> WhatsApp';
+                    button.replaceWith(link);
+                }
+            });
+
+            const alertBox = document.querySelector('.agent-card .alert-warning');
+            if (alertBox) {
+                alertBox.remove();
+            }
+
+            document.getElementById('premiumPaymentFields').style.display = 'none';
+            document.getElementById('startPremiumButton').style.display = 'none';
+            setPremiumStatus('Premium contact access is active. Call and WhatsApp are now unlocked.', 'success');
+        }
+
+        async function checkPremiumStatus(showMessage = false) {
+            try {
+                const response = await fetch(
+                    'api/tenant_contact_payment.php?action=get_status&user_id=<?php echo (int) ($_SESSION["user_id"] ?? 0); ?>',
+                    { method: 'GET' }
+                );
+                const data = await response.json();
+                if (data.status === 'success' && data.has_paid) {
+                    unlockPremiumContactButtons();
+                } else if (showMessage) {
+                    setPremiumStatus('Payment not confirmed yet. Complete payment on the Lenco page, then try again.', 'warning');
+                }
+            } catch (error) {
+                if (showMessage) {
+                    setPremiumStatus('Could not check payment status right now.', 'danger');
+                }
+            }
+        }
+
+        const premiumModal = document.getElementById('premiumContactModal');
+        if (premiumModal) {
+            premiumModal.addEventListener('shown.bs.modal', function () {
+                checkPremiumStatus(false);
+            });
+        }
+
+        window.addEventListener('focus', function () {
+            if (!tenantPremiumUnlocked) {
+                checkPremiumStatus(false);
+            }
+        });
+
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden && !tenantPremiumUnlocked) {
+                checkPremiumStatus(false);
+            }
+        });
+
+        if (tenantPremiumUnlocked) {
+            unlockPremiumContactButtons();
+        } else {
+            setInterval(function () {
+                if (!document.hidden && !tenantPremiumUnlocked) {
+                    checkPremiumStatus(false);
+                }
+            }, 2000);
+        }
+        <?php endif; ?>
 
         function initMap() {
             var lat = <?php echo $lat; ?>;

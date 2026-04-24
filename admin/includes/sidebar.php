@@ -14,7 +14,9 @@
             </a>
         </li>
         <li class="sidebar-item">
-            <a href="transactions.php" class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'transactions.php' ? 'active' : ''; ?>">
+            <a href="<?php echo rtrim(SITE_URL, '/'); ?>/admin/transactions.php"
+               onclick="window.location.href='<?php echo rtrim(SITE_URL, '/'); ?>/admin/transactions.php';"
+               class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'transactions.php' ? 'active' : ''; ?>">
                 <i class="bi bi-wallet2"></i> Transactions
             </a>
         </li>

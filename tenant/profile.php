@@ -8,6 +8,22 @@ include 'includes/header.php';
 $userModel = new User();
 $error = '';
 $success = '';
+$tenant_has_premium = false;
+$tenant_premium_since = null;
+
+try {
+    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $stmtPremium = $pdo->prepare("SELECT created_at FROM premium_contacts WHERE user_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1");
+    $stmtPremium->execute([$_SESSION['user_id']]);
+    $premiumRow = $stmtPremium->fetch(PDO::FETCH_ASSOC);
+    if ($premiumRow) {
+        $tenant_has_premium = true;
+        $tenant_premium_since = $premiumRow['created_at'] ?? null;
+    }
+} catch (Exception $e) {
+    $tenant_has_premium = false;
+}
 
 // Check if form submitted
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -112,6 +128,22 @@ $profilePic = !empty($currentUser['profile_image']) && file_exists('../' . $curr
                     <?php if($success): ?>
                         <div class="alert alert-success"><?php echo $success; ?></div>
                     <?php endif; ?>
+
+                    <div class="alert <?php echo $tenant_has_premium ? 'alert-warning' : 'alert-light'; ?> border d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <div class="fw-bold mb-1">Premium Contact Access</div>
+                            <div class="small mb-0">
+                                <?php if ($tenant_has_premium): ?>
+                                    Active on your account<?php echo !empty($tenant_premium_since) ? ' since ' . date('M d, Y', strtotime($tenant_premium_since)) : ''; ?>.
+                                <?php else: ?>
+                                    Not active yet. Pay on a property details page to unlock landlord contacts.
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <span class="badge rounded-pill <?php echo $tenant_has_premium ? 'bg-warning text-dark' : 'bg-secondary'; ?> px-3 py-2">
+                            <?php echo $tenant_has_premium ? 'PREMIUM ACTIVE' : 'STANDARD'; ?>
+                        </span>
+                    </div>
 
                     <form method="POST" action="" enctype="multipart/form-data">
                         <!-- Profile Image Section -->

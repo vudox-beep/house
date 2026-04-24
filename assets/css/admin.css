@@ -22,6 +22,7 @@ body {
     padding-top: 20px;
     transition: all 0.3s;
     z-index: 1000;
+    pointer-events: auto;
 }
 
 .admin-sidebar .sidebar-brand {
@@ -56,6 +57,9 @@ body {
     text-decoration: none;
     transition: all 0.2s;
     font-weight: 500;
+    position: relative;
+    z-index: 1001;
+    pointer-events: auto;
 }
 
 .sidebar-link:hover, .sidebar-link.active {
@@ -73,6 +77,8 @@ body {
 .admin-main {
     margin-left: 260px;
     padding: 20px;
+    position: relative;
+    z-index: 1;
 }
 
 /* Topbar */

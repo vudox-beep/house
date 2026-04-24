@@ -13,13 +13,87 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'dealer') {
 
 $dealer_id = $_SESSION['user_id'];
 
+function ensureRentPaymentLencoSchema(PDO $pdo): void {
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+
+    $paymentMethodColumn = $pdo->query("SHOW COLUMNS FROM rent_payments LIKE 'payment_method'")->fetch(PDO::FETCH_ASSOC);
+    if ($paymentMethodColumn && strpos($paymentMethodColumn['Type'], "'lenco'") === false) {
+        $pdo->exec("ALTER TABLE rent_payments MODIFY COLUMN payment_method ENUM('cash','bank_transfer','mobile_money','lenco') DEFAULT 'bank_transfer'");
+    }
+
+    $columnsToEnsure = [
+        'reference' => "ALTER TABLE rent_payments ADD COLUMN reference VARCHAR(255) DEFAULT NULL AFTER months_paid",
+        'lenco_reference' => "ALTER TABLE rent_payments ADD COLUMN lenco_reference VARCHAR(255) DEFAULT NULL AFTER reference"
+    ];
+
+    foreach ($columnsToEnsure as $column => $sql) {
+        $exists = $pdo->query("SHOW COLUMNS FROM rent_payments LIKE " . $pdo->quote($column))->fetch(PDO::FETCH_ASSOC);
+        if (!$exists) {
+            $pdo->exec($sql);
+        }
+    }
+
+    $checked = true;
+}
+
 // Fetch All Transactions
 try {
     $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    ensureRentPaymentLencoSchema($pdo);
 
-    $stmt = $pdo->prepare("SELECT * FROM transactions WHERE user_id = :id ORDER BY created_at DESC");
-    $stmt->execute([':id' => $dealer_id]);
+    $stmt = $pdo->prepare("
+        SELECT *
+        FROM (
+            SELECT
+                'subscription' AS entry_type,
+                t.reference,
+                t.amount,
+                t.currency,
+                t.payment_method,
+                t.status,
+                t.created_at,
+                t.message,
+                NULL AS tenant_name,
+                NULL AS property_title,
+                NULL AS month_year
+            FROM transactions t
+            WHERE t.user_id = :dealer_id_subscription
+
+            UNION ALL
+
+            SELECT
+                'tenant_lenco' AS entry_type,
+                rp.reference,
+                rp.amount,
+                rp.currency,
+                'lenco' AS payment_method,
+                CASE
+                    WHEN rp.status = 'approved' THEN 'successful'
+                    WHEN rp.status = 'rejected' THEN 'failed'
+                    ELSE rp.status
+                END AS status,
+                rp.created_at,
+                CONCAT('Tenant ', u.name, ' paid ', rp.month_year, ' via Lenco for ', p.title) AS message,
+                u.name AS tenant_name,
+                p.title AS property_title,
+                rp.month_year
+            FROM rent_payments rp
+            JOIN rentals r ON rp.rental_id = r.id
+            JOIN users u ON rp.tenant_id = u.id
+            JOIN properties p ON r.property_id = p.id
+            WHERE r.dealer_id = :dealer_id_rent
+              AND rp.payment_method = 'lenco'
+        ) payment_history
+        ORDER BY created_at DESC
+    ");
+    $stmt->execute([
+        ':dealer_id_subscription' => $dealer_id,
+        ':dealer_id_rent' => $dealer_id
+    ]);
     $transactions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 } catch (PDOException $e) {
@@ -40,6 +114,7 @@ try {
                     <thead class="bg-light text-muted small text-uppercase">
                         <tr>
                             <th class="ps-4">Reference</th>
+                            <th>Type</th>
                             <th>Amount</th>
                             <th>Method</th>
                             <th>Status</th>
@@ -52,6 +127,14 @@ try {
                             <?php foreach ($transactions as $txn): ?>
                                 <tr>
                                     <td class="ps-4 small fw-bold text-primary"><?php echo htmlspecialchars($txn['reference']); ?></td>
+                                    <td class="small">
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-2">
+                                            <?php echo $txn['entry_type'] === 'tenant_lenco' ? 'Tenant Lenco' : 'Subscription'; ?>
+                                        </span>
+                                        <?php if (!empty($txn['tenant_name'])): ?>
+                                            <div class="small text-muted mt-1"><?php echo htmlspecialchars($txn['tenant_name']); ?></div>
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="fw-bold"><?php echo htmlspecialchars($txn['currency'] . ' ' . number_format($txn['amount'], 2)); ?></td>
                                     <td class="text-capitalize small"><?php echo htmlspecialchars($txn['payment_method'] ?? 'card'); ?></td>
                                     <td>
@@ -71,12 +154,15 @@ try {
                                     <td class="text-muted small"><?php echo date('M d, Y H:i', strtotime($txn['created_at'])); ?></td>
                                     <td class="small text-muted text-truncate" style="max-width: 200px;" title="<?php echo htmlspecialchars($txn['message']); ?>">
                                         <?php echo htmlspecialchars($txn['message']); ?>
+                                        <?php if (!empty($txn['property_title'])): ?>
+                                            <div class="small"><?php echo htmlspecialchars(($txn['property_title'] ?? '') . ' | ' . ($txn['month_year'] ?? '-')); ?></div>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="6" class="text-center py-5">
+                                <td colspan="7" class="text-center py-5">
                                     <div class="text-muted">
                                         <i class="bi bi-receipt fs-1 d-block mb-3 opacity-50"></i>
                                         <h5 class="fw-bold">No Payments Found</h5>
