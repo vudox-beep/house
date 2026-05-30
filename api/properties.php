@@ -310,6 +310,14 @@ if ($action === 'get_all') {
     $property_id = $propertyModel->create($propData);
 
     if ($property_id) {
+        // Trigger emails in background
+        $script_path = realpath(__DIR__ . '/../cron_notifications.php');
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            pclose(popen("start /B php " . escapeshellarg($script_path), "r"));
+        } else {
+            exec("php " . escapeshellarg($script_path) . " > /dev/null 2>&1 &");
+        }
+
         echo json_encode([
             'status' => 'success',
             'message' => 'Property created successfully.',

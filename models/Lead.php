@@ -33,7 +33,7 @@ class Lead {
     }
 
     public function getByDealer($dealer_id) {
-        $query = 'SELECT l.*, p.title as property_title 
+        $query = 'SELECT l.*, p.title as property_title, p.property_type, p.listing_purpose 
                   FROM ' . $this->table . ' l
                   LEFT JOIN properties p ON l.property_id = p.id
                   WHERE l.dealer_id = :dealer_id

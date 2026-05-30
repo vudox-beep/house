@@ -140,20 +140,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 </div>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label for="property_type" class="form-label fw-bold">Property Type *</label>
+                                <label for="property_type" class="form-label fw-bold">Type / Category *</label>
                                 <select class="form-select" id="property_type" name="property_type" required>
-                                    <option value="house" <?php echo $property['property_type'] == 'house' ? 'selected' : ''; ?>>House</option>
-                                    <option value="apartment" <?php echo $property['property_type'] == 'apartment' ? 'selected' : ''; ?>>Apartment</option>
-                                    <option value="flat" <?php echo $property['property_type'] == 'flat' ? 'selected' : ''; ?>>Flat</option>
-                                    <option value="boarding_house" <?php echo $property['property_type'] == 'boarding_house' ? 'selected' : ''; ?>>Boarding House</option>
-                                    <option value="land" <?php echo $property['property_type'] == 'land' ? 'selected' : ''; ?>>Land</option>
-                                    <option value="commercial" <?php echo $property['property_type'] == 'commercial' ? 'selected' : ''; ?>>Commercial</option>
-                                    <option value="wedding_venue" <?php echo $property['property_type'] == 'wedding_venue' ? 'selected' : ''; ?>>Wedding Venue</option>
-                                    <option value="restaurant" <?php echo $property['property_type'] == 'restaurant' ? 'selected' : ''; ?>>Restaurant</option>
-                                    <option value="lodge" <?php echo $property['property_type'] == 'lodge' ? 'selected' : ''; ?>>Lodge</option>
-                                    <option value="studio" <?php echo $property['property_type'] == 'studio' ? 'selected' : ''; ?>>Studio</option>
-                                    <option value="cottage" <?php echo $property['property_type'] == 'cottage' ? 'selected' : ''; ?>>Cottage</option>
-                                    <option value="manor" <?php echo $property['property_type'] == 'manor' ? 'selected' : ''; ?>>Manor</option>
+                                    <optgroup label="Real Estate & Venues">
+                                        <option value="house" <?php echo $property['property_type'] == 'house' ? 'selected' : ''; ?>>House</option>
+                                        <option value="apartment" <?php echo $property['property_type'] == 'apartment' ? 'selected' : ''; ?>>Apartment</option>
+                                        <option value="flat" <?php echo $property['property_type'] == 'flat' ? 'selected' : ''; ?>>Flat</option>
+                                        <option value="boarding_house" <?php echo $property['property_type'] == 'boarding_house' ? 'selected' : ''; ?>>Boarding House</option>
+                                        <option value="land" <?php echo $property['property_type'] == 'land' ? 'selected' : ''; ?>>Land</option>
+                                        <option value="commercial" <?php echo $property['property_type'] == 'commercial' ? 'selected' : ''; ?>>Commercial</option>
+                                        <option value="wedding_venue" <?php echo $property['property_type'] == 'wedding_venue' ? 'selected' : ''; ?>>Wedding Venue</option>
+                                        <option value="restaurant" <?php echo $property['property_type'] == 'restaurant' ? 'selected' : ''; ?>>Restaurant</option>
+                                        <option value="lodge" <?php echo $property['property_type'] == 'lodge' ? 'selected' : ''; ?>>Lodge</option>
+                                        <option value="studio" <?php echo $property['property_type'] == 'studio' ? 'selected' : ''; ?>>Studio</option>
+                                        <option value="cottage" <?php echo $property['property_type'] == 'cottage' ? 'selected' : ''; ?>>Cottage</option>
+                                        <option value="manor" <?php echo $property['property_type'] == 'manor' ? 'selected' : ''; ?>>Manor</option>
+                                    </optgroup>
+                                    <optgroup label="Zed Bine (Services & Items)">
+                                        <option value="salon" <?php echo $property['property_type'] == 'salon' ? 'selected' : ''; ?>>Salon & Beauty</option>
+                                        <option value="gadget" <?php echo $property['property_type'] == 'gadget' ? 'selected' : ''; ?>>Gadgets & Phones</option>
+                                        <option value="mechanic" <?php echo $property['property_type'] == 'mechanic' ? 'selected' : ''; ?>>Mechanic & Auto</option>
+                                        <option value="other_service" <?php echo $property['property_type'] == 'other_service' ? 'selected' : ''; ?>>Other Services</option>
+                                    </optgroup>
                                 </select>
                             </div>
                             <div class="col-md-2 mb-3">
@@ -163,6 +171,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     <option value="sale" <?php echo ($property['listing_purpose'] ?? '') == 'sale' ? 'selected' : ''; ?>>For Sale</option>
                                     <option value="booking" <?php echo ($property['listing_purpose'] ?? '') == 'booking' ? 'selected' : ''; ?>>For Booking</option>
                                     <option value="service" <?php echo ($property['listing_purpose'] ?? '') == 'service' ? 'selected' : ''; ?>>Service</option>
+                                    <option value="auction" <?php echo ($property['listing_purpose'] ?? '') == 'auction' ? 'selected' : ''; ?>>Auction</option>
+                                    <option value="lease" <?php echo ($property['listing_purpose'] ?? '') == 'lease' ? 'selected' : ''; ?>>Lease</option>
                                 </select>
                             </div>
                         </div>
@@ -621,6 +631,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             commonGroups.forEach(el => el.style.display = 'block');
         } else if (['wedding_venue', 'restaurant', 'commercial', 'studio'].includes(type)) {
             venueGroups.forEach(el => el.style.display = 'block');
+        } else if (['salon', 'gadget', 'mechanic', 'other_service'].includes(type)) {
+            // Services generally don't need bedrooms or bathrooms
         }
     }
 </script>

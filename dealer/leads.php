@@ -93,7 +93,11 @@ $leads = $is_subscribed ? $leadModel->getByDealer($dealer_id) : [];
                                             <a href="../property_details.php?id=<?php echo encode_id($lead['property_id']); ?>" target="_blank" class="text-decoration-none fw-semibold text-primary">
                                                 <i class="bi bi-box-arrow-up-right small me-1"></i> <?php echo htmlspecialchars($lead['property_title']); ?>
                                             </a>
-                                            <div class="small text-muted">Ref: #<?php echo str_pad($lead['property_id'], 6, '0', STR_PAD_LEFT); ?></div>
+                                            <div class="mt-1">
+                                                <span class="badge bg-light border text-dark"><?php echo ucfirst($lead['property_type'] ?? 'Property'); ?></span>
+                                                <span class="badge bg-primary bg-opacity-10 text-primary"><?php echo ucfirst($lead['listing_purpose'] ?? 'Rent'); ?></span>
+                                            </div>
+                                            <div class="small text-muted mt-1">Ref: #<?php echo str_pad($lead['property_id'], 6, '0', STR_PAD_LEFT); ?></div>
                                         <?php else: ?>
                                             <span class="text-muted fst-italic">Property Deleted</span>
                                         <?php endif; ?>

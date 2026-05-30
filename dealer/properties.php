@@ -114,18 +114,18 @@ if ($userProfile['identity_verified'] != 1) {
                                     <input type='file' class='form-control' name='dealer_verification_doc' required accept='.jpg,.jpeg,.png,.pdf'>
                                     <div class='form-text'>Photo of you + property. Formats: JPG, PNG</div>
                                 </div>
-                                <button type='submit' class='btn btn-danger w-100 fw-bold'>Submit Verification Photo</button>
+                                </button>
                             </form>
-                        ") . "
+                        ");
+                    ?>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    <script src='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'></script>
-    </body>
-    </html>";
-    exit;
+    <?php
+    include 'includes/footer.php';
+    exit(); // Exit gracefully
 }
 
 $canAddProperty = false;
@@ -196,7 +196,10 @@ $properties = $propertyModel->getByDealer($dealer_id);
                                             </div>
                                         </div>
                                     </td>
-                                    <td><?php echo ucfirst($prop['property_type']); ?></td>
+                                    <td>
+                                        <div><?php echo ucfirst($prop['property_type']); ?></div>
+                                        <small class="badge bg-primary bg-opacity-10 text-primary mt-1"><?php echo ucfirst($prop['listing_purpose'] ?? 'Rent'); ?></small>
+                                    </td>
                                     <td class="fw-bold text-primary"><?php echo $prop['currency'] . ' ' . number_format($prop['price']); ?></td>
                                     <td><span class="badge bg-light text-dark border"><i class="bi bi-eye-fill text-muted"></i> <?php echo number_format($prop['views'] ?? 0); ?></span></td>
                                     <td>

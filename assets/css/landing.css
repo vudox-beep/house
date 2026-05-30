@@ -89,7 +89,7 @@ a:hover {
 
 /* Hero Section */
 .hero-luxe {
-    background: url('https://images.unsplash.com/photo-1600607686527-6fb886090705?ixlib=rb-4.0.3&auto=format&fit=crop&w=2400&q=80');
+    background: url('https://images.unsplash.com/photo-1512917774080-9991f1c4c750?ixlib=rb-4.0.3&auto=format&fit=crop&w=2400&q=80');
     background-size: cover;
     background-position: center;
     height: 600px;
@@ -291,6 +291,11 @@ a:hover {
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
+/* Grayscale for rented properties */
+.grayscale {
+    filter: grayscale(80%);
+}
+
 .featured-price-badge {
     position: absolute;
     bottom: 15px;
@@ -334,8 +339,53 @@ a:hover {
     transition: color 0.2s;
 }
 
+/* Utilities */
+.hover-up {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.hover-up:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+.animate-fade-in-up {
+    animation: fadeInUp 0.8s ease forwards;
+    opacity: 0;
+}
+
 /* Mobile */
 @media (max-width: 768px) {
+    .mobile-slider {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        scroll-snap-type: x mandatory;
+        padding-bottom: 1rem;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none; /* Firefox */
+    }
+    .mobile-slider::-webkit-scrollbar {
+        display: none; /* Chrome/Safari/Edge */
+    }
+    .mobile-slider > .col-md-4 {
+        /* User asked for 3 per row, but on mobile a 33% card is only ~110px wide. 
+           We will use 80% so it's a smooth slider that shows 1 large readable card 
+           and peeks at the next one. */
+        flex: 0 0 85% !important;
+        max-width: 85% !important;
+        scroll-snap-align: center;
+    }
+    
     .hero-luxe {
         height: auto;
         min-height: 500px;

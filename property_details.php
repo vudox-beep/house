@@ -266,7 +266,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
         <nav aria-label="breadcrumb" class="mb-3">
             <ol class="breadcrumb small">
                 <li class="breadcrumb-item"><a href="index.php" class="text-decoration-none text-muted">Home</a></li>
-                <li class="breadcrumb-item"><a href="#" class="text-decoration-none text-muted"><?php echo ucfirst($property['property_type']); ?></a></li>
+                <li class="breadcrumb-item"><a href="#" class="text-decoration-none text-muted">
+                    <?php 
+                        $pt = $property['property_type'];
+                        if (in_array($pt, ['salon', 'gadget', 'mechanic', 'other_service'])) {
+                            echo 'Zed Bine';
+                        } else {
+                            echo ucfirst(str_replace('_', ' ', $pt)); 
+                        }
+                    ?>
+                </a></li>
                 <li class="breadcrumb-item active" aria-current="page"><?php echo htmlspecialchars($property['title']); ?></li>
             </ol>
         </nav>
@@ -274,17 +283,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
         <div class="d-flex justify-content-between align-items-start mb-4">
             <div>
                 <div class="d-flex align-items-center gap-2 mb-2">
+                    <?php if(isset($property['status']) && strtolower($property['status']) === 'rented'): ?>
+                        <span class="badge bg-danger text-white fw-bold text-uppercase px-3 py-2 rounded-pill shadow-sm">
+                            <i class="bi bi-x-circle-fill"></i> RENTED OUT
+                        </span>
+                    <?php endif; ?>
+                    <?php if(in_array($property['property_type'], ['salon', 'gadget', 'mechanic', 'other_service'])): ?>
+                        <span class="badge bg-info text-dark fw-bold text-uppercase px-3 py-2 rounded-pill shadow-sm">
+                            <i class="bi bi-tools"></i> Zed Bine
+                        </span>
+                    <?php endif; ?>
                     <span class="badge bg-warning text-dark fw-bold text-uppercase px-3 py-2 rounded-pill shadow-sm">
                         <?php 
                             $purpose = $property['listing_purpose'] ?? 'rent';
                             if ($purpose == 'booking') echo 'For Booking';
                             elseif ($purpose == 'service') echo 'Service';
                             elseif ($purpose == 'sale') echo 'For Sale';
+                            elseif ($purpose == 'auction') echo 'Auction';
+                            elseif ($purpose == 'lease') echo 'For Lease';
                             else echo 'For Rent';
                         ?>
                     </span>
                     <span class="badge bg-light text-dark border fw-medium px-3 py-2 rounded-pill">
-                        <?php echo ucfirst(str_replace('_', ' ', $property['property_type'])); ?>
+                        <?php 
+                            $pt = $property['property_type'];
+                            if ($pt == 'salon') echo 'Salon & Beauty';
+                            elseif ($pt == 'gadget') echo 'Gadgets & Phones';
+                            elseif ($pt == 'mechanic') echo 'Mechanic & Auto';
+                            elseif ($pt == 'other_service') echo 'Other Service';
+                            else echo ucfirst(str_replace('_', ' ', $pt)); 
+                        ?>
                     </span>
                 </div>
                 <h1 class="fw-bold mb-1"><?php echo htmlspecialchars($property['title']); ?></h1>
@@ -305,6 +333,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                     <?php 
                         if (($property['listing_purpose'] ?? 'rent') == 'sale') {
                             echo 'Full Price';
+                        } elseif (($property['listing_purpose'] ?? '') == 'auction') {
+                            echo 'Starting Bid';
+                        } elseif (($property['listing_purpose'] ?? '') == 'lease') {
+                            echo 'Lease terms apply';
                         } else {
                             if ($property['property_type'] == 'boarding_house') {
                                 echo '/ person';
@@ -322,7 +354,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
         </div>
 
         <!-- Image Gallery (Grid + Slider Support) -->
-        <div class="gallery-grid position-relative">
+        <?php $is_rented = (isset($property['status']) && strtolower($property['status']) === 'rented'); ?>
+        <div class="gallery-grid position-relative <?php echo $is_rented ? 'grayscale opacity-75' : ''; ?>">
+            <?php if($is_rented): ?>
+                <!-- Rented Overlay Banner for Gallery -->
+                <div class="position-absolute top-50 start-50 translate-middle w-100 text-center" style="z-index: 50; pointer-events: none;">
+                    <div class="bg-danger text-white py-3 px-5 shadow-lg fw-bold fs-2 text-uppercase d-inline-block" style="transform: rotate(-15deg); border: 4px solid white; box-shadow: 0 10px 30px rgba(0,0,0,0.6); letter-spacing: 5px;">
+                        RENTED OUT
+                    </div>
+                </div>
+            <?php endif; ?>
             <?php 
                 $count = count($images);
                 // Main Image
@@ -415,16 +456,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                         </div>
                         <?php endif; ?>
 
+                        <?php if(!in_array($property['property_type'], ['salon', 'gadget', 'mechanic', 'other_service'])): ?>
                         <div class="col-6 col-md-3">
                             <div class="bg-light border rounded-3 p-3 h-100 shadow-sm">
                                 <div class="small text-muted">Area</div>
-                                <div class="fw-bold fs-6"><i class="bi bi-aspect-ratio me-1"></i><?php echo $property['size_sqm']; ?> m²</div>
+                                <div class="fw-bold fs-6"><i class="bi bi-aspect-ratio me-1"></i><?php echo $property['size_sqm'] ?? 'N/A'; ?> m²</div>
                             </div>
                         </div>
+                        <?php endif; ?>
                         <div class="col-6 col-md-3">
                             <div class="bg-light border rounded-3 p-3 h-100 shadow-sm">
                                 <div class="small text-muted">Type</div>
-                                <div class="fw-bold fs-6"><?php echo ucfirst(str_replace('_', ' ', $property['property_type'])); ?></div>
+                                <div class="fw-bold fs-6">
+                                    <?php 
+                                        $pt = $property['property_type'];
+                                        if ($pt == 'salon') echo 'Salon & Beauty';
+                                        elseif ($pt == 'gadget') echo 'Gadgets';
+                                        elseif ($pt == 'mechanic') echo 'Mechanic';
+                                        elseif ($pt == 'other_service') echo 'Service';
+                                        else echo ucfirst(str_replace('_', ' ', $pt)); 
+                                    ?>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -526,6 +578,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                 </div>
 
                 <!-- Rental Cost Estimator -->
+                <?php if(!in_array($property['property_type'], ['salon', 'gadget', 'mechanic', 'other_service']) && !in_array($property['listing_purpose'], ['sale', 'auction'])): ?>
                 <div class="mb-5">
                     <div class="accordion" id="calculatorAccordion">
                         <div class="accordion-item border-0 shadow-sm rounded-3 overflow-hidden">
@@ -583,6 +636,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                         </div>
                     </div>
                 </div>
+                <?php endif; ?>
 
             </div>
 
@@ -602,6 +656,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                         </div>
                     </div>
 
+                    <?php
+                        $listing_purpose = $property['listing_purpose'] ?? 'rent';
+                        $cta_text = '';
+                        $cta_icon = '';
+                        $call_label = 'Call Landlord';
+                        $wa_message = "I'm interested in " . urlencode($property['title']);
+                        
+                        if ($listing_purpose == 'booking') {
+                            $cta_text = 'Book Now';
+                            $cta_icon = 'bi-calendar-check';
+                            $call_label = 'Call Host';
+                            $wa_message = "I would like to book " . urlencode($property['title']);
+                        } elseif ($listing_purpose == 'lease') {
+                            $cta_text = 'Apply for Lease';
+                            $cta_icon = 'bi-file-earmark-text';
+                            $call_label = 'Call Lessor';
+                            $wa_message = "I would like to apply for a lease for " . urlencode($property['title']);
+                        } elseif ($listing_purpose == 'sale') {
+                            $cta_text = 'Make an Offer';
+                            $cta_icon = 'bi-tag-fill';
+                            $call_label = 'Call Seller';
+                            $wa_message = "I would like to make an offer for " . urlencode($property['title']);
+                        } elseif ($listing_purpose == 'auction') {
+                            $cta_text = 'Place Bid';
+                            $cta_icon = 'bi-hammer';
+                            $call_label = 'Call Auctioneer';
+                            $wa_message = "I would like to place a bid on " . urlencode($property['title']);
+                        } elseif ($listing_purpose == 'service') {
+                            $call_label = 'Call Provider';
+                            $wa_message = "I'm interested in your service: " . urlencode($property['title']);
+                        }
+                    ?>
+                    
+                    <?php if(!empty($cta_text)): ?>
+                        <?php if($should_lock_contacts): ?>
+                            <?php if($is_tenant_user): ?>
+                                <button type="button" class="btn btn-primary w-100 mb-3 py-2 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#premiumContactModal">
+                                    <i class="bi <?php echo $cta_icon; ?> me-2"></i> <?php echo $cta_text; ?> <i class="bi bi-lock ms-1"></i>
+                                </button>
+                            <?php else: ?>
+                                <a href="<?php echo $contact_login_redirect; ?>" class="btn btn-primary w-100 mb-3 py-2 fw-bold shadow-sm text-decoration-none" onclick="alert('Login as a tenant, then pay to unlock actions.');">
+                                    <i class="bi <?php echo $cta_icon; ?> me-2"></i> <?php echo $cta_text; ?> <i class="bi bi-lock ms-1"></i>
+                                </a>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <a href="https://wa.me/<?php echo preg_replace('/[^0-9]/', '', $property['whatsapp_number'] ?? $property['phone'] ?? ''); ?>?text=<?php echo $wa_message; ?>" target="_blank" class="btn btn-primary w-100 mb-3 py-2 fw-bold shadow-sm text-decoration-none">
+                                <i class="bi <?php echo $cta_icon; ?> me-2"></i> <?php echo $cta_text; ?>
+                            </a>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
                     <?php if(!empty($property['phone'])): ?>
                         <?php if($should_lock_contacts): ?>
                             <?php if($is_tenant_user): ?>
@@ -615,7 +720,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                             <?php endif; ?>
                         <?php else: ?>
                             <a href="tel:<?php echo $property['phone']; ?>" class="btn-contact btn-call">
-                                <i class="bi bi-telephone-fill"></i> Call Landlord
+                                <i class="bi bi-telephone-fill"></i> <?php echo $call_label; ?>
                             </a>
                         <?php endif; ?>
                     <?php endif; ?>
@@ -632,7 +737,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                                 </a>
                             <?php endif; ?>
                         <?php else: ?>
-                            <a href="https://wa.me/<?php echo preg_replace('/[^0-9]/', '', $property['whatsapp_number']); ?>?text=I'm interested in <?php echo urlencode($property['title']); ?>" target="_blank" class="btn-contact btn-whatsapp" id="whatsappContactLink">
+                            <a href="https://wa.me/<?php echo preg_replace('/[^0-9]/', '', $property['whatsapp_number']); ?>?text=<?php echo $wa_message; ?>" target="_blank" class="btn-contact btn-whatsapp" id="whatsappContactLink">
                                 <i class="bi bi-whatsapp"></i> WhatsApp
                             </a>
                         <?php endif; ?>
@@ -688,7 +793,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                         </div>
                     </div>
 
-                    <h6 class="fw-bold mb-3">Send an enquiry</h6>
+                    <?php
+                        $enquiry_title = 'Send an enquiry';
+                        if ($listing_purpose == 'booking') $enquiry_title = 'Request to Book';
+                        elseif ($listing_purpose == 'lease') $enquiry_title = 'Apply for Lease';
+                        elseif ($listing_purpose == 'sale') $enquiry_title = 'Make an Offer';
+                        elseif ($listing_purpose == 'auction') $enquiry_title = 'Inquire about Bidding';
+                        elseif ($listing_purpose == 'service') $enquiry_title = 'Request Service';
+                    ?>
+                    <h6 class="fw-bold mb-3"><?php echo $enquiry_title; ?></h6>
                     <form method="POST" action="property_details.php?id=<?php echo $raw_id; ?>">
                         <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
                         <div class="mb-3">
@@ -705,9 +818,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lead_name'])) {
                         </div>
                         <div class="mb-3">
                             <label class="form-label small fw-bold">Message</label>
-                            <textarea class="form-control" name="lead_message" rows="4" required>I'm interested in this property.</textarea>
+                            <textarea class="form-control" name="lead_message" rows="4" required><?php echo htmlspecialchars($wa_message); ?></textarea>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100">Send Enquiry</button>
+                        <button type="submit" class="btn btn-primary w-100"><?php echo $enquiry_title; ?></button>
                     </form>
                     
                     <hr class="my-4">

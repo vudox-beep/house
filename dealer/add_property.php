@@ -200,33 +200,35 @@ if ($userProfile['identity_verified'] != 1) { // Check if not verified (0=pendin
                                 </button>
                             </form>
                             
-                            <div class='mt-4'>
-                                <a href='dashboard.php' class='btn btn-outline-secondary'>Back to Dashboard</a>
-                            </div>
+                            <script>
+                            function previewIDImage(input) {
+                                var previewContainer = document.getElementById('idPreviewContainer');
+                                var previewImage = document.getElementById('idPreview');
+                                
+                                if (input.files && input.files[0]) {
+                                    var reader = new FileReader();
+                                    
+                                    reader.onload = function(e) {
+                                        previewImage.src = e.target.result;
+                                        previewContainer.style.display = 'block';
+                                    }
+                                    
+                                    reader.readAsDataURL(input.files[0]);
+                                } else {
+                                    previewImage.src = '';
+                                    previewContainer.style.display = 'none';
+                                }
+                            }
+                            </script>
                         <?php endif; ?>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    
-    <script>
-    function previewIDImage(input) {
-        if (input.files && input.files[0]) {
-            var reader = new FileReader();
-            reader.onload = function(e) {
-                document.getElementById('idPreview').src = e.target.result;
-                document.getElementById('idPreviewContainer').style.display = 'block';
-            }
-            reader.readAsDataURL(input.files[0]);
-        }
-    }
-    </script>
-    <script src='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'></script>
-    </body>
-    </html>
     <?php
-    exit; // STOP EXECUTION HERE
+    include 'includes/footer.php';
+    exit(); // Exit gracefully
 }
 
 if ($dealerProfile && $dealerProfile['subscription_status'] === 'active') {
@@ -358,6 +360,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         $property_id = $property->create($data);
         if ($property_id) {
+            // Trigger emails in background
+            $script_path = realpath(__DIR__ . '/../cron_notifications.php');
+            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                pclose(popen("start /B php " . escapeshellarg($script_path), "r"));
+            } else {
+                exec("php " . escapeshellarg($script_path) . " > /dev/null 2>&1 &");
+            }
+
             $success = "Property added successfully! Now upload images.";
             // Redirect to image upload page with the new property ID
             echo "<script>window.location.href = 'upload_images.php?id=" . $property_id . "';</script>";
@@ -400,20 +410,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 </div>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label for="property_type" class="form-label fw-bold">Property Type *</label>
+                                <label for="property_type" class="form-label fw-bold">Type / Category *</label>
                                 <select class="form-select" id="property_type" name="property_type" required>
-                                    <option value="house">House</option>
-                                    <option value="apartment">Apartment</option>
-                                    <option value="flat">Flat</option>
-                                    <option value="boarding_house">Boarding House</option>
-                                    <option value="land">Land</option>
-                                    <option value="commercial">Commercial</option>
-                                    <option value="wedding_venue">Wedding Venue</option>
-                                    <option value="restaurant">Restaurant</option>
-                                    <option value="lodge">Lodge</option>
-                                    <option value="studio">Studio</option>
-                                    <option value="cottage">Cottage</option>
-                                    <option value="manor">Manor</option>
+                                    <optgroup label="Real Estate & Venues">
+                                        <option value="house">House</option>
+                                        <option value="apartment">Apartment</option>
+                                        <option value="flat">Flat</option>
+                                        <option value="boarding_house">Boarding House</option>
+                                        <option value="land">Land</option>
+                                        <option value="commercial">Commercial</option>
+                                        <option value="wedding_venue">Wedding Venue</option>
+                                        <option value="restaurant">Restaurant</option>
+                                        <option value="lodge">Lodge</option>
+                                        <option value="studio">Studio</option>
+                                        <option value="cottage">Cottage</option>
+                                        <option value="manor">Manor</option>
+                                    </optgroup>
+                                    <optgroup label="Zed Bine (Services & Items)">
+                                        <option value="salon">Salon & Beauty</option>
+                                        <option value="gadget">Gadgets & Phones</option>
+                                        <option value="mechanic">Mechanic & Auto</option>
+                                        <option value="other_service">Other Services</option>
+                                    </optgroup>
                                 </select>
                             </div>
                             <div class="col-md-2 mb-3">
@@ -423,6 +441,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     <option value="sale">For Sale</option>
                                     <option value="booking">For Booking</option>
                                     <option value="service">Service</option>
+                                    <option value="auction">Auction</option>
+                                    <option value="lease">Lease</option>
                                 </select>
                             </div>
                         </div>
@@ -888,6 +908,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             commonGroups.forEach(el => el.style.display = 'block');
         } else if (['wedding_venue', 'restaurant', 'commercial', 'studio'].includes(type)) {
             venueGroups.forEach(el => el.style.display = 'block');
+        } else if (['salon', 'gadget', 'mechanic', 'other_service'].includes(type)) {
+            // Service types generally don't need bedrooms/bathrooms
         }
     }
 

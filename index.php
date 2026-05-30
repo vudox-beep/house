@@ -98,6 +98,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                         </select>
                     </div>
                     <div class="search-input-group">
+                        <i class="bi bi-bullseye"></i>
+                        <select class="search-input bg-transparent" name="listing_purpose" style="cursor:pointer;">
+                            <option value="">Any Purpose</option>
+                            <option value="rent">For Rent</option>
+                            <option value="sale">For Sale</option>
+                            <option value="auction">Auction</option>
+                            <option value="lease">Lease</option>
+                            <option value="booking">Booking</option>
+                            <option value="service">Service</option>
+                        </select>
+                    </div>
+                    <div class="search-input-group">
                         <i class="bi bi-cash"></i>
                         <input type="number" class="search-input text-center" name="min_price" placeholder="Min" style="width: 40%;">
                         <span class="text-muted fw-bold mx-1">-</span>
@@ -113,6 +125,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                     </div>
                 </form>
             </div>
+            
+            <div class="mt-4 animate-fade-in-up" style="animation-delay: 0.5s;">
+                <a href="https://play.google.com/store/apps/details?id=com.houserent.africa&pcampaignid=web_share" target="_blank" class="text-decoration-none">
+                    <div class="d-inline-flex align-items-center gap-3 bg-dark bg-opacity-75 text-white px-4 py-2 rounded-pill shadow-sm border border-secondary border-opacity-50 hover-up">
+                        <i class="bi bi-google-play fs-4 text-success"></i>
+                        <div class="text-start">
+                            <div class="small fw-bold text-uppercase" style="letter-spacing: 1px; font-size: 0.7rem; color: #adb5bd;">Get it on</div>
+                            <div class="fw-bold" style="font-size: 1.1rem; line-height: 1;">Google Play</div>
+                        </div>
+                        <span class="badge bg-primary rounded-pill ms-2">Download HouseRent Africa</span>
+                    </div>
+                </a>
+            </div>
+
         </div>
     </header>
 
@@ -150,6 +176,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                         <span class="category-name">Rent</span>
                     </div>
                 </a>
+                <a href="listings.php?listing_purpose=auction" class="text-decoration-none">
+                    <div class="category-icon-item <?php echo ($_GET['listing_purpose'] ?? '') == 'auction' ? 'active' : ''; ?>">
+                        <i class="bi bi-hammer category-icon-img"></i>
+                        <span class="category-name">Auction</span>
+                    </div>
+                </a>
+                <a href="listings.php?listing_purpose=lease" class="text-decoration-none">
+                    <div class="category-icon-item <?php echo ($_GET['listing_purpose'] ?? '') == 'lease' ? 'active' : ''; ?>">
+                        <i class="bi bi-file-earmark-text category-icon-img"></i>
+                        <span class="category-name">Lease</span>
+                    </div>
+                </a>
                 <a href="listings.php?property_type=cottage" class="text-decoration-none">
                     <div class="category-icon-item <?php echo ($_GET['property_type'] ?? '') == 'cottage' ? 'active' : ''; ?>">
                         <i class="bi bi-tree category-icon-img"></i>
@@ -175,7 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
     <!-- Additional Services (Weddings, Restaurants, Studios) -->
     <section class="py-5">
         <div class="container">
-            <div class="row g-4 text-center">
+            <div class="row g-4 text-center mobile-slider">
                 <!-- Wedding Places -->
                 <div class="col-md-4">
                     <div class="card h-100 border-0 shadow-sm hover-up">
@@ -229,6 +267,64 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                         </div>
                     </div>
                 </div>
+
+                <!-- Zed Bine (Local Services) -->
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm hover-up">
+                        <div class="position-relative overflow-hidden rounded-top">
+                            <img src="https://images.unsplash.com/photo-1580927752452-89d86da3fa0a?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" class="card-img-top" alt="Zed Bine Services" style="height: 200px; object-fit: cover;">
+                            <div class="overlay-gradient position-absolute w-100 h-100 top-0 start-0"></div>
+                        </div>
+                        <div class="card-body">
+                            <div class="icon-circle bg-warning-subtle text-warning mb-3 mx-auto">
+                                <i class="bi bi-phone fs-4"></i>
+                            </div>
+                            <h5 class="card-title fw-bold">Zed Bine (Services)</h5>
+                            <p class="card-text text-muted small">Find and post everyday services like phone repairs, hair salons, mechanics, and more.</p>
+                            <div class="d-flex justify-content-center gap-2 mt-3">
+                                <a href="listings.php?section=all_service" class="btn btn-warning text-dark btn-sm rounded-pill px-3 fw-bold">Explore</a>
+                                <a href="register.php" class="btn btn-outline-dark btn-sm rounded-pill px-3 fw-bold">Post</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Auctions -->
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm hover-up">
+                        <div class="position-relative overflow-hidden rounded-top">
+                            <img src="https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" class="card-img-top" alt="Auctions" style="height: 200px; object-fit: cover;">
+                            <div class="overlay-gradient position-absolute w-100 h-100 top-0 start-0"></div>
+                        </div>
+                        <div class="card-body">
+                            <div class="icon-circle bg-danger-subtle text-danger mb-3 mx-auto">
+                                <i class="bi bi-hammer fs-4"></i>
+                            </div>
+                            <h5 class="card-title fw-bold">Property Auctions</h5>
+                            <p class="card-text text-muted small">Discover premium auction properties and exclusive bidding opportunities.</p>
+                            <a href="listings.php?listing_purpose=auction" class="btn btn-danger text-white btn-sm rounded-pill px-4 fw-bold mt-3">View Auctions</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Commercial Leases -->
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm hover-up">
+                        <div class="position-relative overflow-hidden rounded-top">
+                            <img src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" class="card-img-top" alt="Commercial Leases" style="height: 200px; object-fit: cover;">
+                            <div class="overlay-gradient position-absolute w-100 h-100 top-0 start-0"></div>
+                        </div>
+                        <div class="card-body">
+                            <div class="icon-circle bg-info-subtle text-info mb-3 mx-auto">
+                                <i class="bi bi-file-earmark-text fs-4"></i>
+                            </div>
+                            <h5 class="card-title fw-bold">Commercial Leases</h5>
+                            <p class="card-text text-muted small">Long-term lease opportunities for businesses and corporate clients.</p>
+                            <a href="listings.php?listing_purpose=lease" class="btn btn-info text-white btn-sm rounded-pill px-4 fw-bold mt-3">View Leases</a>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </section>
@@ -244,21 +340,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                 <a href="listings.php?featured=1" class="text-warning fw-bold text-decoration-none">View all <i class="bi bi-arrow-right"></i></a>
             </div>
 
-            <div class="row g-4">
+            <div class="row g-4 mobile-slider">
                 <?php 
                 // Fetch featured properties
-                $featuredProps = $propertyModel->getFeatured(3); 
+                $featuredPropsRaw = $propertyModel->getFeatured(10); // Fetch a few extra so we can filter
+                
+                // Filter out Zed Bine (service) properties from featured
+                $zedBineTypes = ['salon', 'gadget', 'mechanic', 'other_service'];
+                $featuredProps = array_filter($featuredPropsRaw, function($p) use ($zedBineTypes) {
+                    return !in_array($p['property_type'] ?? '', $zedBineTypes);
+                });
+                
+                // Limit to exactly 3 for display
+                $featuredProps = array_slice($featuredProps, 0, 3);
+                
                 if(count($featuredProps) > 0):
                     foreach($featuredProps as $property):
                         $main_image = 'https://placehold.co/600x400?text=No+Image';
                         $images = $propertyModel->getImages($property['id']);
                         if(count($images) > 0) $main_image = $images[0]['image_path'];
+                        // Check if property is rented out
+                        $is_rented = (isset($property['status']) && strtolower($property['status']) === 'rented');
                 ?>
                 <div class="col-md-4">
-                    <div class="featured-card">
-                        <div class="featured-img-wrapper">
+                    <div class="featured-card <?php echo $is_rented ? 'opacity-75' : ''; ?>">
+                        <div class="featured-img-wrapper position-relative">
                             <a href="property_details.php?id=<?php echo $property['id']; ?>">
-                                <img src="<?php echo $main_image; ?>" class="featured-img" alt="<?php echo htmlspecialchars($property['title']); ?>">
+                                <img src="<?php echo $main_image; ?>" class="featured-img <?php echo $is_rented ? 'grayscale' : ''; ?>" alt="<?php echo htmlspecialchars($property['title']); ?>">
+                                <?php if($is_rented): ?>
+                                    <!-- Rented Overlay Banner -->
+                                    <div class="position-absolute top-50 start-50 translate-middle w-100 text-center" style="z-index: 10;">
+                                        <div class="bg-danger text-white py-2 px-4 shadow-lg fw-bold fs-5 text-uppercase" style="transform: rotate(-15deg); border: 2px solid white; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                                            RENTED
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
                             </a>
                             <span class="position-absolute top-0 start-0 badge bg-white text-dark m-3 shadow-sm">
                                 <?php 
@@ -269,6 +385,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
                                         echo 'Service';
                                     } elseif ($purpose == 'sale') {
                                         echo 'Selling';
+                                    } elseif ($purpose == 'auction') {
+                                        echo 'Auction';
+                                    } elseif ($purpose == 'lease') {
+                                        echo 'Lease';
                                     } else {
                                         echo 'Rent';
                                     }
@@ -342,92 +462,107 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
             </div>
             
             <?php if(count($properties) > 0): ?>
-                <div class="row g-4">
-                    <?php foreach($properties as $property): ?>
-                        <?php 
-                            $main_image = 'https://placehold.co/600x400?text=No+Image';
-                            $images = $propertyModel->getImages($property['id']);
-                            if(count($images) > 0) {
-                                foreach($images as $img) {
-                                    if($img['is_main']) {
-                                        $main_image = $img['image_path'];
-                                        break;
-                                    }
-                                    $main_image = $images[0]['image_path'];
+                <div class="row g-4 mobile-slider">
+                    <?php 
+                    // Filter out Zed Bine (service) properties
+                    $zedBineTypes = ['salon', 'gadget', 'mechanic', 'other_service'];
+                    $filteredProps = array_filter($properties, function($p) use ($zedBineTypes) {
+                        return !in_array($p['property_type'] ?? '', $zedBineTypes);
+                    });
+                    // Limit to latest 6 properties for the Latest Listings section
+                    $latestProps = array_slice($filteredProps, 0, 6);
+                    foreach($latestProps as $property): 
+                        $main_image = 'https://placehold.co/600x400?text=No+Image';
+                        $images = $propertyModel->getImages($property['id']);
+                        if(count($images) > 0) {
+                            foreach($images as $img) {
+                                if($img['is_main']) {
+                                    $main_image = $img['image_path'];
+                                    break;
                                 }
+                                $main_image = $images[0]['image_path'];
                             }
-                        ?>
-                        <div class="col-md-6 col-lg-4 d-flex">
-                            <div class="card property-card border-0 shadow-sm w-100">
-                                <div class="position-relative">
-                                    <a href="property_details.php?id=<?php echo $property['id']; ?>">
-                                        <img src="<?php echo $main_image; ?>" class="card-img-top" alt="<?php echo htmlspecialchars($property['title']); ?>">
-                                    </a>
-                                    <span class="position-absolute top-0 end-0 badge bg-white text-dark m-3 shadow-sm">
-                                        <?php echo ucfirst(str_replace('_', ' ', $property['property_type'])); ?> · 
-                                        <?php 
-                                            $purpose = $property['listing_purpose'] ?? 'rent';
-                                            if ($purpose == 'booking') echo 'Booking';
-                                            elseif ($purpose == 'service') echo 'Service';
-                                            elseif ($purpose == 'sale') echo 'Sale';
-                                            else echo 'Rent';
-                                        ?>
-                                    </span>
-                                    <span class="position-absolute bottom-0 start-0 badge bg-primary m-3 shadow-sm">
-                                        <?php 
-                                            if(in_array($property['property_type'], ['wedding_venue', 'commercial', 'studio'])) {
-                                                echo 'Booking Price: ' . $property['currency'] . ' ' . number_format($property['price']);
-                                            } elseif ($property['property_type'] == 'restaurant') {
-                                                echo 'Service Price: ' . $property['currency'] . ' ' . number_format($property['price']);
+                        }
+                        // Check if property is rented out
+                        $is_rented = (isset($property['status']) && strtolower($property['status']) === 'rented');
+                    ?>
+                <div class="col-md-4">
+                    <div class="featured-card <?php echo $is_rented ? 'opacity-75' : ''; ?>">
+                        <div class="featured-img-wrapper position-relative">
+                            <a href="property_details.php?id=<?php echo $property['id']; ?>">
+                                <img src="<?php echo $main_image; ?>" class="featured-img <?php echo $is_rented ? 'grayscale' : ''; ?>" alt="<?php echo htmlspecialchars($property['title']); ?>">
+                                <?php if($is_rented): ?>
+                                    <!-- Rented Overlay Banner -->
+                                    <div class="position-absolute top-50 start-50 translate-middle w-100 text-center" style="z-index: 10;">
+                                        <div class="bg-danger text-white py-2 px-4 shadow-lg fw-bold fs-5 text-uppercase" style="transform: rotate(-15deg); border: 2px solid white; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                                            RENTED
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                            </a>
+                            <span class="position-absolute top-0 start-0 badge bg-white text-dark m-3 shadow-sm">
+                                <?php 
+                                    $purpose = $property['listing_purpose'] ?? 'rent';
+                                    if ($purpose == 'booking') {
+                                        echo 'Booking';
+                                    } elseif ($purpose == 'service') {
+                                        echo 'Service';
+                                    } elseif ($purpose == 'sale') {
+                                        echo 'Selling';
+                                    } elseif ($purpose == 'auction') {
+                                        echo 'Auction';
+                                    } elseif ($purpose == 'lease') {
+                                        echo 'Lease';
+                                    } else {
+                                        echo 'Rent';
+                                    }
+                                ?>
+                            </span>
+                            <span class="position-absolute bottom-0 end-0 badge bg-dark bg-opacity-75 m-3 shadow-sm">
+                                <i class="bi bi-images"></i> <?php echo count($images); ?> Photos
+                            </span>
+                            <span class="featured-price-badge">
+                                <?php 
+                                    if(in_array($property['property_type'], ['wedding_venue', 'commercial', 'studio'])) {
+                                        echo 'Booking Price: ' . $property['currency'] . ' ' . number_format($property['price']);
+                                    } elseif ($property['property_type'] == 'restaurant') {
+                                        echo 'Service Price: ' . $property['currency'] . ' ' . number_format($property['price']);
+                                    } else {
+                                        echo $property['currency'] . ' ' . number_format($property['price']); 
+                                        if (($property['listing_purpose'] ?? 'rent') === 'rent') {
+                                            if ($property['property_type'] == 'boarding_house') {
+                                                echo ' / person';
+                                            } elseif ($property['property_type'] == 'lodge') {
+                                                echo ' / night';
                                             } else {
-                                                echo $property['currency'] . ' ' . number_format($property['price']);
-                                                if (($property['listing_purpose'] ?? 'rent') == 'rent') {
-                                                    if ($property['property_type'] == 'boarding_house') {
-                                                        echo '/ person';
-                                                    } elseif ($property['property_type'] == 'lodge') {
-                                                        echo '/ night';
-                                                    } else {
-                                                        echo '/ mo';
-                                                    }
-                                                }
+                                                echo ' / mo';
                                             }
-                                        ?>
-                                    </span>
-                                    <span class="position-absolute bottom-0 end-0 badge bg-dark bg-opacity-75 text-white m-3 shadow-sm">
-                                        <i class="bi bi-images"></i> <?php echo count($images); ?>
-                                    </span>
-                                </div>
-                                <div class="card-body">
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <small class="text-muted"><i class="bi bi-clock"></i> <?php echo date('M d, Y', strtotime($property['created_at'])); ?></small>
-                                        <small class="text-success fw-bold"><i class="bi bi-check-circle-fill"></i> Verified</small>
-                                    </div>
-                                    <h5 class="card-title mb-2">
-                                        <a href="property_details.php?id=<?php echo $property['id']; ?>" class="text-dark text-decoration-none">
-                                            <?php echo htmlspecialchars($property['title']); ?>
-                                        </a>
-                                    </h5>
-                                    <p class="card-text text-muted small mb-3">
-                                        <i class="bi bi-geo-alt-fill text-primary"></i> <?php echo htmlspecialchars($property['location']); ?>
-                                    </p>
-                                    <div class="property-features border-top pt-3">
-                                        <?php if(in_array($property['property_type'], ['house', 'apartment', 'flat', 'cottage', 'manor', 'lodge'])): ?>
-                                            <span><i class="bi bi-people-fill"></i> <?php echo $property['bedrooms']; ?> Beds</span>
-                                            <span><i class="bi bi-droplet-fill"></i> <?php echo $property['bathrooms']; ?> Baths</span>
-                                            <span><i class="bi bi-aspect-ratio-fill"></i> <?php echo $property['size_sqm']; ?> m²</span>
-                                        <?php elseif($property['property_type'] == 'boarding_house'): ?>
-                                            <span><i class="bi bi-people-fill"></i> <?php echo $property['people_per_room'] ?? 1; ?> / Room</span>
-                                            <span><i class="bi bi-door-open-fill"></i> <?php echo $property['rooms']; ?> Rooms</span>
-                                        <?php elseif(in_array($property['property_type'], ['wedding_venue', 'restaurant', 'commercial', 'studio'])): ?>
-                                            <span><i class="bi bi-people-fill"></i> Cap: <?php echo $property['capacity'] ?? 'N/A'; ?></span>
-                                            <span><i class="bi bi-aspect-ratio-fill"></i> <?php echo $property['size_sqm']; ?> m²</span>
-                                        <?php else: ?>
-                                            <span><i class="bi bi-aspect-ratio-fill"></i> <?php echo $property['size_sqm']; ?> m²</span>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
+                                        }
+                                    }
+                                ?>
+                            </span>
+                        </div>
+                        <div class="featured-body">
+                            <div class="featured-title"><?php echo htmlspecialchars($property['title']); ?></div>
+                            <div class="featured-location"><i class="bi bi-geo-alt"></i> <?php echo htmlspecialchars($property['location']); ?></div>
+                            <div class="featured-amenities">
+                                <?php if(in_array($property['property_type'], ['house', 'apartment', 'flat', 'cottage', 'manor', 'lodge'])): ?>
+                                    <span><i class="bi bi-people"></i> <?php echo $property['bedrooms']; ?> Guests</span>
+                                    <span><i class="bi bi-layout-sidebar"></i> <?php echo $property['bedrooms']; ?> Beds</span>
+                                    <span><i class="bi bi-droplet"></i> <?php echo $property['bathrooms']; ?> Baths</span>
+                                <?php elseif($property['property_type'] == 'boarding_house'): ?>
+                                    <span><i class="bi bi-people"></i> <?php echo $property['people_per_room'] ?? 1; ?> / Room</span>
+                                    <span><i class="bi bi-door-open"></i> <?php echo $property['rooms']; ?> Rooms</span>
+                                <?php elseif(in_array($property['property_type'], ['wedding_venue', 'restaurant', 'commercial', 'studio'])): ?>
+                                    <span><i class="bi bi-people-fill"></i> Cap: <?php echo $property['capacity'] ?? 'N/A'; ?></span>
+                                    <span><i class="bi bi-aspect-ratio"></i> <?php echo $property['size_sqm']; ?> m²</span>
+                                <?php else: ?>
+                                    <span><i class="bi bi-aspect-ratio"></i> <?php echo $property['size_sqm']; ?> m²</span>
+                                <?php endif; ?>
                             </div>
                         </div>
+                    </div>
+                </div>
                     <?php endforeach; ?>
                 </div>
             <?php else: ?>
@@ -439,6 +574,72 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
             <?php endif; ?>
         </div>
     </section>
+
+    <!-- Boarding Houses Section -->
+    <section class="py-5 bg-light">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center mb-5">
+                <div>
+                    <h2 class="mb-1">Top Boarding Houses</h2>
+                    <p class="text-muted mb-0">Find the perfect student accommodation</p>
+                </div>
+                <a href="listings.php?property_type=boarding_house" class="text-decoration-none fw-bold">View All <i class="bi bi-arrow-right"></i></a>
+            </div>
+            
+            <?php 
+            $boardingHouses = array_filter($properties, function($p) { return $p['property_type'] === 'boarding_house'; });
+            $boardingHouses = array_slice($boardingHouses, 0, 6);
+            if(count($boardingHouses) > 0): 
+            ?>
+                <div class="row g-4 mobile-slider">
+                    <?php foreach($boardingHouses as $property): 
+                        $main_image = 'https://placehold.co/600x400?text=No+Image';
+                        $images = $propertyModel->getImages($property['id']);
+                        if(count($images) > 0) $main_image = $images[0]['image_path'];
+                        // Check if property is rented out
+                        $is_rented = (isset($property['status']) && strtolower($property['status']) === 'rented');
+                    ?>
+                <div class="col-md-4">
+                    <div class="featured-card <?php echo $is_rented ? 'opacity-75' : ''; ?>">
+                        <div class="featured-img-wrapper position-relative">
+                            <a href="property_details.php?id=<?php echo $property['id']; ?>">
+                                <img src="<?php echo $main_image; ?>" class="featured-img <?php echo $is_rented ? 'grayscale' : ''; ?>" alt="<?php echo htmlspecialchars($property['title']); ?>">
+                                <?php if($is_rented): ?>
+                                    <!-- Rented Overlay Banner -->
+                                    <div class="position-absolute top-50 start-50 translate-middle w-100 text-center" style="z-index: 10;">
+                                        <div class="bg-danger text-white py-2 px-4 shadow-lg fw-bold fs-5 text-uppercase" style="transform: rotate(-15deg); border: 2px solid white; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                                            RENTED
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                            </a>
+                            <span class="position-absolute top-0 start-0 badge bg-white text-dark m-3 shadow-sm">Boarding House</span>
+                            <span class="position-absolute bottom-0 end-0 badge bg-dark bg-opacity-75 m-3 shadow-sm">
+                                <i class="bi bi-images"></i> <?php echo count($images); ?> Photos
+                            </span>
+                            <span class="featured-price-badge">
+                                <?php echo $property['currency'] . ' ' . number_format($property['price']) . ' / person'; ?>
+                            </span>
+                        </div>
+                        <div class="featured-body">
+                            <div class="featured-title"><?php echo htmlspecialchars($property['title']); ?></div>
+                            <div class="featured-location"><i class="bi bi-geo-alt"></i> <?php echo htmlspecialchars($property['location']); ?></div>
+                            <div class="featured-amenities">
+                                <span><i class="bi bi-people"></i> <?php echo $property['people_per_room'] ?? 1; ?> / Room</span>
+                                <span><i class="bi bi-door-open"></i> <?php echo $property['rooms']; ?> Rooms</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php else: ?>
+                <div class="text-center text-muted">No boarding houses available at the moment.</div>
+            <?php endif; ?>
+        </div>
+    </section>
+
+
 
     <!-- Call to Action -->
     <section class="py-5 bg-primary text-center">
@@ -498,7 +699,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET' && (isset($_GET['location']) || isset($_
             </div>
             <hr class="border-secondary my-4">
             <div class="d-flex justify-content-between align-items-center small text-white">
-                <div>&copy; <?php echo date('Y'); ?> <?php echo SITE_NAME; ?>. All rights reserved. <span class="fw-bold">Owned by <?php echo OWNER_NAME; ?>.</span></div>
+                <div>&copy; <?php echo date('Y'); ?> <?php echo SITE_NAME; ?>. All rights reserved. <span class="fw-bold">Owned by <?php echo defined('OWNER_NAME') ? OWNER_NAME : 'Site Owner'; ?>.</span></div>
                 <div>Builder: <span class="text-white">Lackson Chisala</span></div>
             </div>
         </div>

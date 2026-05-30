@@ -174,5 +174,164 @@ if ($current_day == 5 && !$payment) {
     }
 }
 
-echo "Done.\n";
+echo "Done processing rent notifications.\n";
+
+// =========================================================================
+// 2. NOTIFY DEALERS: New Tenant Requests
+// =========================================================================
+echo "\nStarting Tenant Requests Notification Script...\n";
+
+try {
+    // 1. Ensure the emails_sent column exists
+    $stmt = $conn->query("SHOW COLUMNS FROM tenant_requests LIKE 'emails_sent'");
+    if ($stmt->rowCount() == 0) {
+        $conn->exec("ALTER TABLE tenant_requests ADD COLUMN emails_sent TINYINT(1) DEFAULT 0");
+        echo "Added 'emails_sent' column to tenant_requests table.\n";
+    }
+
+    // 2. Fetch new tenant requests that haven't been emailed yet
+    $sql_requests = "SELECT r.*, u.name as tenant_name, u.email as tenant_email
+                     FROM tenant_requests r 
+                     JOIN users u ON r.user_id = u.id 
+                     WHERE r.emails_sent = 0";
+            
+    $stmt_requests = $conn->query($sql_requests);
+    $newRequests = $stmt_requests->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!empty($newRequests)) {
+        // 3. Fetch all dealers
+        $stmt_dealers = $conn->query("SELECT email, name FROM users WHERE role = 'dealer'");
+        $dealers = $stmt_dealers->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!empty($dealers)) {
+            // 4. Send emails and update status
+            foreach ($newRequests as $request) {
+                $propertyType = !empty($request['property_type']) ? $request['property_type'] : 'Any';
+                $location = !empty($request['location']) ? $request['location'] : 'Any';
+                $budget = !empty($request['budget']) ? number_format($request['budget'], 2) : 'Not specified';
+                $messageBody = nl2br(htmlspecialchars($request['message']));
+
+                $subject = "New Tenant Request Alert - " . SITE_NAME;
+                
+                foreach ($dealers as $dealer) {
+                    $emailContent = "Hello " . htmlspecialchars($dealer['name']) . ",<br><br>
+                                     A new tenant request has been posted on <b>" . SITE_NAME . "</b>:<br><br>
+                                     <b>Tenant:</b> " . htmlspecialchars($request['tenant_name']) . "<br>
+                                     <b>Looking for:</b> {$propertyType}<br>
+                                     <b>Location:</b> {$location}<br>
+                                     <b>Budget:</b> ZMW {$budget}<br><br>
+                                     <b>Message:</b><br>
+                                     <blockquote style='border-left: 3px solid #0d6efd; margin: 10px 0; padding: 10px; background-color: #f8f9fa;'>
+                                        {$messageBody}
+                                     </blockquote><br><br>
+                                     Please log in to your dealer dashboard to respond to this request and connect with the tenant.<br><br>
+                                     <a href='" . SITE_URL . "/login.php' style='display: inline-block; padding: 10px 20px; background-color: #0d6efd; color: #fff; text-decoration: none; border-radius: 5px;'>Login to Dashboard</a><br><br>
+                                     Thank you,<br>
+                                     The " . SITE_NAME . " Team";
+
+                    if ($mailer->send($dealer['email'], $subject, $emailContent)) {
+                        echo "Sent request notification to dealer: " . $dealer['email'] . "\n";
+                    }
+                    
+                    // Sleep slightly to avoid overwhelming SMTP server
+                    usleep(200000); 
+                }
+
+                // Mark as sent
+                $updateStmt = $conn->prepare("UPDATE tenant_requests SET emails_sent = 1 WHERE id = :id");
+                $updateStmt->execute([':id' => $request['id']]);
+                echo "Marked request ID " . $request['id'] . " as successfully sent to all dealers.\n";
+            }
+        } else {
+            echo "No dealers found to notify for tenant requests.\n";
+        }
+    } else {
+        echo "No new tenant requests to notify.\n";
+    }
+
+    echo "Finished processing tenant requests.\n";
+
+} catch (Exception $e) {
+    echo "Error processing tenant requests: " . $e->getMessage() . "\n";
+}
+
+// =========================================================================
+// 3. NOTIFY TENANTS: New Property Listings
+// =========================================================================
+echo "\nStarting New Property Notification Script...\n";
+
+try {
+    // 1. Ensure the emails_sent column exists on properties
+    $stmt = $conn->query("SHOW COLUMNS FROM properties LIKE 'emails_sent'");
+    if ($stmt->rowCount() == 0) {
+        $conn->exec("ALTER TABLE properties ADD COLUMN emails_sent TINYINT(1) DEFAULT 0");
+        echo "Added 'emails_sent' column to properties table.\n";
+    }
+
+    // 2. Fetch new properties that haven't been emailed yet
+    $sql_properties = "SELECT p.*, d.name as dealer_name
+                       FROM properties p 
+                       JOIN users d ON p.dealer_id = d.id 
+                       WHERE p.emails_sent = 0 AND p.status = 'available'";
+            
+    $stmt_properties = $conn->query($sql_properties);
+    $newProperties = $stmt_properties->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!empty($newProperties)) {
+        // 3. Fetch all tenants (users)
+        $stmt_tenants = $conn->query("SELECT email, name FROM users WHERE role = 'user'");
+        $tenants = $stmt_tenants->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!empty($tenants)) {
+            // 4. Send emails and update status
+            foreach ($newProperties as $property) {
+                $propertyType = !empty($property['property_type']) ? ucfirst($property['property_type']) : 'Property';
+                $location = !empty($property['location']) ? $property['location'] : 'Any';
+                $price = !empty($property['price']) ? number_format($property['price'], 2) : 'Negotiable';
+                $currency = !empty($property['currency']) ? $property['currency'] : 'ZMW';
+                $title = !empty($property['title']) ? $property['title'] : 'New Listing';
+                $purpose = !empty($property['listing_purpose']) ? ucfirst($property['listing_purpose']) : 'Rent/Sale';
+
+                $subject = "New " . $purpose . " Listing Alert - " . SITE_NAME;
+                
+                foreach ($tenants as $tenant) {
+                    $emailContent = "Hello " . htmlspecialchars($tenant['name']) . ",<br><br>
+                                     A new property for <b>" . strtolower($purpose) . "</b> has just been listed on <b>" . SITE_NAME . "</b>:<br><br>
+                                     <b>Title:</b> " . htmlspecialchars($title) . "<br>
+                                     <b>Type:</b> {$propertyType}<br>
+                                     <b>Location:</b> " . htmlspecialchars($location) . "<br>
+                                     <b>Price:</b> {$currency} {$price}<br>
+                                     <b>Listed By:</b> " . htmlspecialchars($property['dealer_name']) . "<br><br>
+                                     Log in or open the app to view more details, pictures, and contact the landlord.<br><br>
+                                     <a href='" . SITE_URL . "/property_details.php?id=" . $property['id'] . "' style='display: inline-block; padding: 10px 20px; background-color: #0d6efd; color: #fff; text-decoration: none; border-radius: 5px;'>View Property</a><br><br>
+                                     Thank you,<br>
+                                     The " . SITE_NAME . " Team";
+
+                    if ($mailer->send($tenant['email'], $subject, $emailContent)) {
+                        // Uncomment for debugging if needed: echo "Sent new listing notification to tenant: " . $tenant['email'] . "\n";
+                    }
+                    
+                    // Sleep slightly to avoid overwhelming SMTP server
+                    usleep(200000); 
+                }
+
+                // Mark as sent
+                $updateStmt = $conn->prepare("UPDATE properties SET emails_sent = 1 WHERE id = :id");
+                $updateStmt->execute([':id' => $property['id']]);
+                echo "Marked property ID " . $property['id'] . " as successfully sent to all tenants.\n";
+            }
+        } else {
+            echo "No tenants found to notify for new properties.\n";
+        }
+    } else {
+        echo "No new properties to notify.\n";
+    }
+
+    echo "Finished processing new property listings.\n";
+
+} catch (Exception $e) {
+    echo "Error processing new properties: " . $e->getMessage() . "\n";
+}
+
+echo "\nAll cron tasks completed.\n";
 ?>

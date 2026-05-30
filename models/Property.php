@@ -10,7 +10,7 @@ class Property {
         $this->conn = $database->connect();
     }
 
-    // Get all properties (Only from Active Dealers)
+    // Get all properties (Only from Active Dealers, regardless of status)
     public function getAll() {
         $query = 'SELECT p.*, u.name as dealer_name, u.whatsapp_number, u.phone 
                   FROM ' . $this->table . ' p
@@ -281,11 +281,11 @@ class Property {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Get Featured Properties
+    // Get Featured Properties (Only from Active Dealers, regardless of status)
     public function getFeatured($limit = 3) {
         $query = 'SELECT p.* FROM ' . $this->table . ' p
                   LEFT JOIN dealers d ON p.dealer_id = d.user_id
-                  WHERE p.is_featured = 1 AND p.status = "available" 
+                  WHERE p.is_featured = 1 
                   AND d.subscription_status = "active" AND (d.subscription_expiry IS NULL OR d.subscription_expiry > NOW())
                   ORDER BY RAND() LIMIT :limit';
         $stmt = $this->conn->prepare($query);

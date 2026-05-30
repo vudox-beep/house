@@ -41,7 +41,9 @@ $purposeLabels = [
     'rent' => 'For Rent',
     'sale' => 'For Sale',
     'booking' => 'For Booking',
-    'service' => 'Service'
+    'service' => 'Service',
+    'auction' => 'Auction',
+    'lease' => 'Lease'
 ];
 
 $typeLabels = [
@@ -57,7 +59,11 @@ $typeLabels = [
     'restaurant' => 'Restaurant',
     'lodge' => 'Lodge',
     'commercial' => 'Commercial',
-    'land' => 'Land'
+    'land' => 'Land',
+    'salon' => 'Salon & Beauty',
+    'gadget' => 'Gadgets & Phones',
+    'mechanic' => 'Mechanic & Auto',
+    'other_service' => 'Other Service'
 ];
 
 $groupedProperties = [];
@@ -65,7 +71,14 @@ foreach ($properties as $property) {
     $purpose = $property['listing_purpose'] ?? 'rent';
     $type = $property['property_type'] ?? 'property';
     $groupKey = $purpose . '|' . $type;
-    $groupTitle = ($purposeLabels[$purpose] ?? ucfirst(str_replace('_', ' ', $purpose))) . ' - ' . ($typeLabels[$type] ?? ucfirst(str_replace('_', ' ', $type)));
+    
+    // Override group title specifically for Zed Bine services
+    if (in_array($type, ['salon', 'gadget', 'mechanic', 'other_service'])) {
+        $groupTitle = 'Zed Bine - ' . ($typeLabels[$type] ?? ucfirst(str_replace('_', ' ', $type)));
+    } else {
+        $groupTitle = ($purposeLabels[$purpose] ?? ucfirst(str_replace('_', ' ', $purpose))) . ' - ' . ($typeLabels[$type] ?? ucfirst(str_replace('_', ' ', $type)));
+    }
+    
     if (!isset($groupedProperties[$groupKey])) {
         $groupedProperties[$groupKey] = [
             'title' => $groupTitle,
@@ -184,13 +197,15 @@ foreach ($properties as $property) {
 
                             <!-- Purpose -->
                             <div class="col-md-2">
-                                <label class="form-label fw-bold small text-uppercase">Purpose</label>
-                                <select class="form-select form-select-sm" name="listing_purpose">
-                                    <option value="">Any Purpose</option>
-                                    <option value="rent" <?php echo ($filters['listing_purpose'] == 'rent') ? 'selected' : ''; ?>>For Rent</option>
-                                    <option value="sale" <?php echo ($filters['listing_purpose'] == 'sale') ? 'selected' : ''; ?>>For Sale</option>
-                                    <option value="booking" <?php echo ($filters['listing_purpose'] == 'booking') ? 'selected' : ''; ?>>For Booking</option>
+                                <label class="form-label fw-bold small text-muted text-uppercase">Purpose</label>
+                                <select class="form-select border-0 bg-light" name="listing_purpose">
+                                    <option value="">All Types</option>
+                                    <option value="rent" <?php echo ($filters['listing_purpose'] == 'rent') ? 'selected' : ''; ?>>Rent</option>
+                                    <option value="sale" <?php echo ($filters['listing_purpose'] == 'sale') ? 'selected' : ''; ?>>Sale</option>
+                                    <option value="booking" <?php echo ($filters['listing_purpose'] == 'booking') ? 'selected' : ''; ?>>Booking</option>
                                     <option value="service" <?php echo ($filters['listing_purpose'] == 'service') ? 'selected' : ''; ?>>Service</option>
+                                    <option value="auction" <?php echo ($filters['listing_purpose'] == 'auction') ? 'selected' : ''; ?>>Auction</option>
+                                    <option value="lease" <?php echo ($filters['listing_purpose'] == 'lease') ? 'selected' : ''; ?>>Lease</option>
                                 </select>
                             </div>
 
@@ -213,14 +228,27 @@ foreach ($properties as $property) {
                                 <label class="form-label fw-bold small text-uppercase">Category</label>
                                 <select class="form-select form-select-sm" name="property_type">
                                     <option value="">All Categories</option>
-                                    <?php 
-                                    $types = ['apartment', 'house', 'villa', 'cottage', 'studio', 'flat', 'boarding_house', 'land', 'manor', 'wedding_venue', 'restaurant', 'lodge', 'commercial'];
-                                    foreach($types as $type): 
-                                    ?>
-                                        <option value="<?php echo $type; ?>" <?php echo ($filters['property_type'] == $type) ? 'selected' : ''; ?>>
-                                            <?php echo ucfirst(str_replace('_', ' ', $type)); ?>
-                                        </option>
-                                    <?php endforeach; ?>
+                                    <optgroup label="Real Estate & Venues">
+                                        <?php 
+                                        $types = ['apartment', 'house', 'villa', 'cottage', 'studio', 'flat', 'boarding_house', 'land', 'manor', 'wedding_venue', 'restaurant', 'lodge', 'commercial'];
+                                        foreach($types as $type): 
+                                        ?>
+                                            <option value="<?php echo $type; ?>" <?php echo ($filters['property_type'] == $type) ? 'selected' : ''; ?>>
+                                                <?php echo ucfirst(str_replace('_', ' ', $type)); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </optgroup>
+                                    <optgroup label="Zed Bine (Services & Items)">
+                                        <?php 
+                                        $service_types = ['salon', 'gadget', 'mechanic', 'other_service'];
+                                        foreach($service_types as $stype): 
+                                            $label = $stype == 'salon' ? 'Salon & Beauty' : ($stype == 'gadget' ? 'Gadgets & Phones' : ($stype == 'mechanic' ? 'Mechanic & Auto' : 'Other Service'));
+                                        ?>
+                                            <option value="<?php echo $stype; ?>" <?php echo ($filters['property_type'] == $stype) ? 'selected' : ''; ?>>
+                                                <?php echo $label; ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </optgroup>
                                 </select>
                             </div>
 
@@ -298,12 +326,21 @@ foreach ($properties as $property) {
                                         <img src="<?php echo $main_image; ?>" class="listing-img" alt="<?php echo htmlspecialchars($property['title']); ?>">
                                     </a>
                                     <span class="badge bg-white text-dark listing-badge position-absolute top-0 end-0 m-2 fw-bold small" style="font-size: 0.7rem;">
-                                        <?php echo ucfirst(str_replace('_', ' ', $property['property_type'])); ?> · 
+                                        <?php 
+                                            $pt = $property['property_type'];
+                                            if ($pt == 'salon') echo 'Salon';
+                                            elseif ($pt == 'gadget') echo 'Gadgets';
+                                            elseif ($pt == 'mechanic') echo 'Mechanic';
+                                            elseif ($pt == 'other_service') echo 'Service';
+                                            else echo ucfirst(str_replace('_', ' ', $pt)); 
+                                        ?> · 
                                         <?php 
                                             $purpose = $property['listing_purpose'] ?? 'rent';
                                             if ($purpose == 'booking') echo 'Booking';
                                             elseif ($purpose == 'service') echo 'Service';
                                             elseif ($purpose == 'sale') echo 'Sale';
+                                            elseif ($purpose == 'auction') echo 'Auction';
+                                            elseif ($purpose == 'lease') echo 'Lease';
                                             else echo 'Rent';
                                         ?>
                                     </span>
